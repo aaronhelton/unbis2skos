@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 require 'tmpdir'
+require 'json'
 
 # Variables that should probably come from argv
 thesaurus = "thesaurus.sdf.utf8"
@@ -62,14 +63,18 @@ def jsonify(infile,outdir)
       authrecord = fh.read
       fh.close
       recordid = ""
+      record_hash = Hash.new
       authrecord.split("\n").each do |line|
         if line =~ /Recordid/
-          recordid = line.split(": ")[1]
+          recordid = line.split(": ")[1].gsub(/\s+/,"")
         end
-        key = line.split(": ")[0]
-        value = line.split(": ")[1]
+        key = line.split(": ")[0].strip
+        value = line.split(": ")[1].encode('UTF-8','UTF-8').strip
+        record_hash.merge!(key => value)
       end
-      
+      File.open("#{outdir}/#{recordid}.json", "a") do |out|
+        out.puts record_hash.to_json
+      end
     end
   end
 end
