@@ -125,7 +125,94 @@ end
 
 def skosify(indir,mapfile,outfile)
   # outputs SKOS Core formatted XML
+  map = JSON.parse(File.read("#{mapfile}")) or abort "Could not open map file #{mapfile}."
+  File.open(outfile, "w+") do |out|
+    out.puts '<?xml version="1.0" encoding="UTF-8"?>'
+    out.puts '<rdf:RDF'
+    out.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
+    out.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
+    out.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
+    out.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
+    out.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
+    out.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
+    out.puts '  <skos:ConceptScheme rdf:about="http://lib-thesaurus.un.org">'
+    out.puts '    <skos:prefLabel>UNBIS Thesaurus</skos:prefLabel>'
+    out.puts '  </skos:ConceptScheme>'
+    Dir.foreach(indir) do |file|
+      unless file == "." || file == ".."
+        rec = JSON.parse(File.read("#{indir}/#{file}"))
+        recordid = rec['Recordid']
+        if recordid == 'T0013483'
+          # Special exception for LA NIÑA CURRENT
+          eterm = "LA NINA CURRENT"
+        elsif recordid == 'T0010244'
+          # Special exception for EL NIÑO CURRENT
+          eterm = "EL NINO CURRENT"
+        else
+          eterm = rec['ETerm']
+        end
+        out.puts '  <skos:Concept rdf:about="' + map[recordid]["uri"] + '">'
+        out.puts '    <skos:externalID>' + recordid + '</skos:externalID>'
+        if rec['ATerm'] then out.puts '    <skos:prefLabel xml:lang="ar">' + rec['ATerm'] + '</skos:prefLabel>' end
+        if rec['CTerm'] then out.puts '    <skos:prefLabel xml:lang="zh">' + rec['CTerm'] + '</skos:prefLabel>' end
+        if rec['ETerm'] then out.puts '    <skos:prefLabel xml:lang="en">' + rec['ETerm'] + '</skos:prefLabel>' end
+        if rec['FTerm'] then out.puts '    <skos:prefLabel xml:lang="fr">' + rec['FTerm'] + '</skos:prefLabel>' end
+        if rec['RTerm'] then out.puts '    <skos:prefLabel xml:lang="ru">' + rec['RTerm'] + '</skos:prefLabel>' end
+        if rec['STerm'] then out.puts '    <skos:prefLabel xml:lang="es">' + rec['STerm'] + '</skos:prefLabel>' end
+        if rec['BT'] != ""
+          bt_one = rec['BT'].gsub(/,/,";").gsub(/; /,", ")
+          if bt_one =~ /;/
+            bt_one.split(";").each do |bt|
+              out.puts '    <skos:broader rdf:resource="' + map[bt]["uri"] + '"/>'
+            end
+          else
+            out.puts '    <skos:broader rdf:resource="' + map[bt_one]["uri"] + '"/>'
+          end
+        end
+        if rec['NT'] != ""
+          nt_one = rec['NT'].gsub(/,/,";").gsub(/; /,", ")
+          if nt_one =~ /;/
+            nt_one.split(";").each do |nt|
+              if nt =~ /O CURRENT/
+                out.puts '    <skos:narrower rdf:resource="' + map["EL NINO CURRENT"]["uri"]  + '"/>'
+              elsif nt =~ /A CURRENT/
+                out.puts '    <skos:narrower rdf:resource="' + map["LA NINA CURRENT"]["uri"]  + '"/>'
+              else
+                out.puts '    <skos:narrower rdf:resource="' + map[nt]["uri"] + '"/>'
+              end
+            end
+          else
+            out.puts '    <skos:narrower rdf:resource="' + map[nt_one]["uri"] + '"/>'
+          end
+        end
+        if rec['RT'] != ""
+          rt_one = rec['RT'].gsub(/,/,";").gsub(/; /,", ")
+          puts rt_one
+          if rt_one =~ /;/
+            rt_one.split(";").each do |rt|
+              if rt =~ /O CURRENT/
+                out.puts '    <skos:related rdf:resource="' + map["EL NINO CURRENT"]["uri"]  + '"/>'
+              elsif rt =~ /A CURRENT/
+                out.puts '    <skos:related rdf:resource="' + map["LA NINA CURRENT"]["uri"]  + '"/>'
+              else
+                if map[rt] then out.puts '    <skos:related rdf:resource="' + map[rt]["uri"] + '"/>' end
+              end
+            end
+          else
+            if map[rt_one] then out.puts '    <skos:narrower rdf:resource="' + map[rt_one]["uri"] + '"/>' end
+          end
+        end
+        out.puts '    <skos:inScheme rdf:resource="http://lib-thesaurus.un.org"/>'
+        out.puts '  </skos:Concept>'
+      end
+    end
+    out.puts '</rdf:RDF>'
+  end
 end
 
+#These need to be ARGV-ified at some point
+#For now, just uncomment the ones you need.
+
 #jsonify(thesaurus,jsondir)
-makemap(jsondir,thesaurusmap)
+#makemap(jsondir,thesaurusmap)
+skosify(jsondir,thesaurusmap,skosfile)
