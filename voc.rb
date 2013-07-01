@@ -3,6 +3,7 @@
 
 require 'tmpdir'
 require 'json'
+require 'net/http'
 
 # Variables that should probably come from argv
 thesaurus = "thesaurus.sdf.utf8"
@@ -10,17 +11,60 @@ jsondir = "jsons"
 thesaurusmap = "thesaurus-map.json"
 skosfile = "thesaurus-skos.xml"
 
-# Global class for Authority Records
-class AuthorityRecord
-  def initialize()
-    @data = Hash.new { |hash, key| hash[key] = [] }
+def makemap(indir,mapfile)
+  termmap = Hash.new
+  map = Hash.new
+  listpaths = Array.new
+  listbasepath = "/LIB/DHLUNBISThesaurus.nsf/BrowseEng?OpenView&Start="
+  host = "lib-thesaurus.un.org"
+  i = 1
+  while i < 8000 do
+    listpaths << "#{listbasepath}#{i}&Count=1000"
+    i = i + 1000
   end
-  def [](key)
-    @data[key]
+  listpaths.each do |path|
+    tempdoc = Net::HTTP.get(host,path).split("\n")
+    tempdoc.each do |line|
+      if line =~ /fee3fb01c865ac5d85256cf400648b1f/
+        if line =~ /2367c500d9f2df7785256d1f00595de9/
+          # Special exception for LA NIÑA CURRENT
+          term = "LA NINA CURRENT"
+        elsif line =~ /9e4ae9cd23a675a885256aa000601af9/
+          # Special exception for EL NIÑO CURRENT
+          term = "EL NINO CURRENT"
+        else
+          term = line.split('<a href="')[1].split('">')[1].split("</a>")[0]
+        end
+        termpath = line.split('<a href="')[1].split('"')[0].gsub(/\?OpenDocument/, "")
+        uri = "http://#{host}#{termpath}"
+        puts term.encode('UTF-8','UTF-8')
+        termmap.merge!(term.encode('UTF-8','UTF-8') => uri)
+      end
+    end
+  end 
+  Dir.foreach(indir) do |file|
+    if file != "." && file != ".."
+      rec = File.read("#{indir}/#{file}")
+      jrec = JSON.parse(rec)
+      recordid = jrec['Recordid']
+      if recordid == 'T0013483'
+        # Special exception for LA NIÑA CURRENT
+        eterm = "LA NINA CURRENT"
+      elsif recordid == 'T0010244'
+        # Special exception for EL NIÑO CURRENT
+        eterm = "EL NINO CURRENT"
+      else
+        eterm = jrec['ETerm'].encode('UTF-8','UTF-8')
+      end
+      id = file.split(".")[0]
+      # We are going to create two views, one for a lookup by eterm, and the other for lookup by T* identifier
+      # This might not be necessary, but it is logical to me.  Anyway it will allow lookups like map[term] and map[id]
+      map.merge!(eterm => { "id" => id, "uri" => termmap[eterm], "term" => jrec['ETerm'] } )
+      map.merge!(id => { "id" => id, "uri" => termmap[eterm], "term" => jrec['ETerm'] } )
+    end
   end
-  def []=(key,words)
-    @data[key] += [words].flatten
-    @data[key].uniq!
+  File.open(mapfile, "w+") do |out|
+    out.puts map.to_json
   end
 end
 
@@ -79,14 +123,9 @@ def jsonify(infile,outdir)
   end
 end
 
-def makemap(indir,mapfile)
-  # Makes JSON formatted map file(s) to lookup by T code and by ETerm
-end
-
 def skosify(indir,mapfile,outfile)
   # outputs SKOS Core formatted XML
 end
 
-jsonify(thesaurus,jsondir)
-
-
+#jsonify(thesaurus,jsondir)
+makemap(jsondir,thesaurusmap)
