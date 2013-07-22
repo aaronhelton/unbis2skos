@@ -213,6 +213,9 @@ end
 #These need to be ARGV-ified at some point
 #For now, just uncomment the ones you need.
 
-#jsonify(thesaurus,jsondir)
-#makemap(jsondir,thesaurusmap)
+puts "Making JSON files"
+jsonify(thesaurus,jsondir)
+puts "Creating map"
+makemap(jsondir,thesaurusmap)
+puts "Skosifying"
 skosify(jsondir,thesaurusmap,skosfile)
