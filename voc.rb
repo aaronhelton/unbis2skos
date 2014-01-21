@@ -47,6 +47,9 @@ def makemap(indir,mapfile)
       rec = File.read("#{indir}/#{file}")
       jrec = JSON.parse(rec)
       recordid = jrec['Recordid']
+      #if jrec['GeogTerm'] == "Yes"
+      #  next
+      #end
       if recordid == 'T0013483'
         # Special exception for LA NIÑA CURRENT
         eterm = "LA NINA CURRENT"
@@ -109,14 +112,18 @@ def jsonify(infile,outdir)
       recordid = ""
       record_hash = Hash.new
       authrecord.split("\n").each do |line|
-        if line =~ /Recordid/
+        if line =~ /Recordid\:/
           recordid = line.split(": ")[1].gsub(/\s+/,"")
         end
         key = line.split(": ")[0].strip
         value = line.split(": ")[1].encode('UTF-8','UTF-8').strip
         record_hash.merge!(key => value)
       end
-      File.open("#{outdir}/#{recordid}.json", "a") do |out|
+      if recordid =~ /^P/
+        next
+      end
+      puts "Attempting to write #{tmpdir}/#{file} to #{outdir}/#{recordid}.json"
+      File.open("#{outdir}/#{recordid}.json", "w+") do |out|
         out.puts record_hash.to_json
       end
     end
@@ -140,8 +147,12 @@ def skosify(indir,mapfile,outfile)
     out.puts '  </skos:ConceptScheme>'
     Dir.foreach(indir) do |file|
       unless file == "." || file == ".."
+        puts "Reading #{file}"
         rec = JSON.parse(File.read("#{indir}/#{file}"))
         recordid = rec['Recordid']
+        if rec['GeogTerm'] == 'Yes'
+          next
+        end
         if recordid == 'T0013483'
           # Special exception for LA NIÑA CURRENT
           eterm = "LA NINA CURRENT"
@@ -151,38 +162,42 @@ def skosify(indir,mapfile,outfile)
         else
           eterm = rec['ETerm']
         end
-        out.puts '  <skos:Concept rdf:about="' + map[recordid]["uri"] + '">'
+        out.puts '  <skos:Concept rdf:about="' + map[recordid]["uri"].to_s + '">'
         out.puts '    <skos:externalID>' + recordid + '</skos:externalID>'
-        if rec['ATerm'] then out.puts '    <skos:prefLabel xml:lang="ar">' + rec['ATerm'] + '</skos:prefLabel>' end
-        if rec['CTerm'] then out.puts '    <skos:prefLabel xml:lang="zh">' + rec['CTerm'] + '</skos:prefLabel>' end
-        if rec['ETerm'] then out.puts '    <skos:prefLabel xml:lang="en">' + rec['ETerm'] + '</skos:prefLabel>' end
-        if rec['FTerm'] then out.puts '    <skos:prefLabel xml:lang="fr">' + rec['FTerm'] + '</skos:prefLabel>' end
-        if rec['RTerm'] then out.puts '    <skos:prefLabel xml:lang="ru">' + rec['RTerm'] + '</skos:prefLabel>' end
-        if rec['STerm'] then out.puts '    <skos:prefLabel xml:lang="es">' + rec['STerm'] + '</skos:prefLabel>' end
+        #if rec['ATerm'] then out.puts '    <skos:prefLabel xml:lang="ar">' + rec['ATerm'] + '</skos:prefLabel>' end
+        #if rec['CTerm'] then out.puts '    <skos:prefLabel xml:lang="zh">' + rec['CTerm'] + '</skos:prefLabel>' end
+        if rec['ETerm'] then out.puts '    <skos:prefLabel xml:lang="en">' + rec['ETerm'].downcase + '</skos:prefLabel>' end
+        if rec['FTerm'] then out.puts '    <skos:prefLabel xml:lang="fr">' + rec['FTerm'].downcase + '</skos:prefLabel>' end
+        #if rec['RTerm'] then out.puts '    <skos:prefLabel xml:lang="ru">' + rec['RTerm'] + '</skos:prefLabel>' end
+        if rec['STerm'] then out.puts '    <skos:prefLabel xml:lang="es">' + rec['STerm'].downcase + '</skos:prefLabel>' end
+        if rec['EUF'] && rec['EUF'].size > 0 then out.puts   '    <skos:scopeNote xml:lang="en">' + rec['EUF'].downcase + '</skos:scopeNote>' end
+        if rec['FUF'] && rec['FUF'].size > 0 then out.puts   '    <skos:scopeNote xml:lang="fr">' + rec['FUF'].downcase + '</skos:scopeNote>' end
+        if rec['SUF'] && rec['SUF'].size > 0 then out.puts   '    <skos:scopeNote xml:lang="es">' + rec['SUF'].downcase + '</skos:scopeNote>' end
         if rec['BT'] != ""
           bt_one = rec['BT'].gsub(/,/,";").gsub(/; /,", ")
           if bt_one =~ /;/
             bt_one.split(";").each do |bt|
-              out.puts '    <skos:broader rdf:resource="' + map[bt]["uri"] + '"/>'
+              if map[bt] then out.puts '    <skos:broader rdf:resource="' + map[bt]["uri"].to_s + '"/>' end
             end
           else
-            out.puts '    <skos:broader rdf:resource="' + map[bt_one]["uri"] + '"/>'
+            if map[bt_one] then out.puts '    <skos:broader rdf:resource="' + map[bt_one]["uri"].to_s + '"/>' end
           end
         end
         if rec['NT'] != ""
           nt_one = rec['NT'].gsub(/,/,";").gsub(/; /,", ")
           if nt_one =~ /;/
             nt_one.split(";").each do |nt|
+	      puts "Found #{nt}"
               if nt =~ /O CURRENT/
-                out.puts '    <skos:narrower rdf:resource="' + map["EL NINO CURRENT"]["uri"]  + '"/>'
+                out.puts '    <skos:narrower rdf:resource="' + map["EL NINO CURRENT"]["uri"].to_s  + '"/>'
               elsif nt =~ /A CURRENT/
-                out.puts '    <skos:narrower rdf:resource="' + map["LA NINA CURRENT"]["uri"]  + '"/>'
+                out.puts '    <skos:narrower rdf:resource="' + map["LA NINA CURRENT"]["uri"].to_s  + '"/>'
               else
-                out.puts '    <skos:narrower rdf:resource="' + map[nt]["uri"] + '"/>'
+                if map[nt] then out.puts '    <skos:narrower rdf:resource="' + map[nt]["uri"].to_s + '"/>' end
               end
             end
           else
-            out.puts '    <skos:narrower rdf:resource="' + map[nt_one]["uri"] + '"/>'
+            if map[nt_one] then out.puts '    <skos:narrower rdf:resource="' + map[nt_one]["uri"].to_s + '"/>' end
           end
         end
         if rec['RT'] != ""
@@ -191,15 +206,15 @@ def skosify(indir,mapfile,outfile)
           if rt_one =~ /;/
             rt_one.split(";").each do |rt|
               if rt =~ /O CURRENT/
-                out.puts '    <skos:related rdf:resource="' + map["EL NINO CURRENT"]["uri"]  + '"/>'
+                out.puts '    <skos:related rdf:resource="' + map["EL NINO CURRENT"]["uri"].to_s  + '"/>'
               elsif rt =~ /A CURRENT/
-                out.puts '    <skos:related rdf:resource="' + map["LA NINA CURRENT"]["uri"]  + '"/>'
+                out.puts '    <skos:related rdf:resource="' + map["LA NINA CURRENT"]["uri"].to_s  + '"/>'
               else
-                if map[rt] then out.puts '    <skos:related rdf:resource="' + map[rt]["uri"] + '"/>' end
+                if map[rt] then out.puts '    <skos:related rdf:resource="' + map[rt]["uri"].to_s + '"/>' end
               end
             end
           else
-            if map[rt_one] then out.puts '    <skos:narrower rdf:resource="' + map[rt_one]["uri"] + '"/>' end
+            if map[rt_one] then out.puts '    <skos:narrower rdf:resource="' + map[rt_one]["uri"].to_s + '"/>' end
           end
         end
         out.puts '    <skos:inScheme rdf:resource="http://lib-thesaurus.un.org"/>'
