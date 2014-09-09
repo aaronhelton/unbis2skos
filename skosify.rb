@@ -1,5 +1,12 @@
 #!/bin/env ruby
 
+############################################################################
+# To do:
+#	serialize concept labels as JSON
+#	add alternate labels
+#	finish format handling (XML, JSON, both)
+############################################################################
+
 require 'optparse'
 require 'pp'
 require 'tmpdir'
