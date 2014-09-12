@@ -1,9 +1,8 @@
 #!/bin/env ruby
+# encoding: utf-8
 
 ############################################################################
 # To do:
-#	serialize concept labels as JSON
-#	add alternate labels
 #	finish format handling (XML, JSON, both)
 ############################################################################
 
@@ -69,14 +68,43 @@ class Concept
       "Concept" => { 
         "id" => @id, 
 	"uri" => @uri,
-        "labels" => @labels,
+        "labels" => @labels.to_json,
         "in_schemes" => @in_schemes,
         "broader_terms" => @broader_terms,
         "narrower_terms" => @narrower_terms,
         "related_terms" => @related_terms,
-        "scope_notes" => @scope_notes
+        "scope_notes" => @scope_notes.to_json
       }
     }.to_json(*a)
+  end
+
+  def to_xml(*a)
+    xml = "<skos:Concept rdf:about=\"#{@uri}\">"
+    xml += "  <skos:externalId>#{@id}</skos:externalId>"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>"
+      else
+        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>"
+      end
+    end
+    @in_schemes.each do |s|
+      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>"
+    end
+    @broader_terms.each do |b|
+      xml += "  <skos:broader rdf:resource=\"#{b}\"/>"
+    end
+    @narrower_terms.each do |n|
+      xml += "  <skos:narrower rdf:resource=\"#{n}\"/>"
+    end
+    @related_terms.each do |r|
+      xml += "  <skos:related rdf:resource=\"#{r}\"/>"
+    end
+    @scope_notes.each do |s|
+      xml += "  <skos:scopeNote xml:lang=\"#{s.language}\">#{s.text}</skos:scopeNote>"
+    end
+    xml += "</skos:Concept>"
+    return xml
   end
 end
 
@@ -107,14 +135,38 @@ class Scheme
     }.to_json(*a)
 
   end
+
+  def to_xml(*a)
+    xml = "<skos:ConceptScheme rdf:about=\"#{@uri}\">"
+    @in_schemes.each do |s|
+      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>"
+    end
+    @labels.each do |label|
+      # I really should make these Language classes
+      xml += "  <skos:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skos:prefLabel>"
+    end
+    @top_concepts.each do |c|
+      xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>"
+    end
+    xml += "</skos:ConceptScheme>"
+  end
 end
 
 class Label
-  attr_reader :text, :language
+  attr_reader :text, :language, :type
 
-  def initialize(text,language)
+  def initialize(text,language, type)
     @text = text
     @language = language
+    @type = type
+  end
+
+  def to_json(*a)
+    {
+      "text" => @text,
+      "language" => @language,
+      "type" => @type
+    }.to_json(*a)
   end
 end
 
@@ -124,6 +176,13 @@ class ScopeNote
   def initialize(text,language)
     @text = text
     @language = language
+  end
+
+  def to_json(*a)
+    {
+      "text" => @text,
+      "language" => @language
+    }.to_json(*a)
   end
 end
 
@@ -156,12 +215,14 @@ def readfile(infile)
     end
     if i > 1000 && i % 1000 == 0 then print "." end
   end
-  p "]"
+  print "]\n"
 
   sdf_records_array = Array.new
 
+  print "["
   Dir.foreach(tmpdir) do |file|
     unless file == "." || file == ".."
+      print "."
       recordid = ""
       sdf_record_hash = Hash.new
       #puts "Reading from #{tmpdir}/#{file}"
@@ -178,6 +239,7 @@ def readfile(infile)
       end
     end
   end
+  print "]\n"
 
   return concepts
 end
@@ -189,22 +251,22 @@ def parse_raw(c)
   in_schemes = Array.new
   scope_notes = Array.new
   raw_rbnts = Hash.new
-  labels = [	Label.new(c["ATerm"],"ar"), 
-		Label.new(c["CTerm"],"zh"), 
-		Label.new(c["ETerm"].downcase,"en"),
-		Label.new(c["FTerm"].downcase,"fr"),
-		Label.new(c["RTerm"],"ru"),
-		Label.new(c["STerm"],"es")]
+  labels = [	Label.new(c["ATerm"],"ar","preferred"), 
+		Label.new(c["CTerm"],"zh","preferred"), 
+		Label.new(c["ETerm"].downcase,"en","preferred"),
+		Label.new(c["FTerm"].downcase,"fr","preferred"),
+		Label.new(c["RTerm"],"ru","preferred"),
+		Label.new(c["STerm"].downcase,"es","preferred")]
   c["SearchFacet"].split(/,/).each do |s|
     in_schemes << "/unbist/scheme/#{s[0..1]}"
     in_schemes << "/unbist/scheme/#{s}"
   end
   if c["AUF"] && c["AUF"].size > 0 then scope_notes << ScopeNote.new(c["AUF"],"ar") end
   if c["CUF"] && c["CUF"].size > 0 then scope_notes << ScopeNote.new(c["CUF"],"zh") end
-  if c["EUF"] && c["EUF"].size > 0 then scope_notes << ScopeNote.new(c["EUF"],"en") end
-  if c["FUF"] && c["FUF"].size > 0 then scope_notes << ScopeNote.new(c["FUF"],"fr") end
+  if c["EUF"] && c["EUF"].size > 0 then scope_notes << ScopeNote.new(c["EUF"].downcase,"en") end
+  if c["FUF"] && c["FUF"].size > 0 then scope_notes << ScopeNote.new(c["FUF"].downcase,"fr") end
   if c["RUF"] && c["RUF"].size > 0 then scope_notes << ScopeNote.new(c["RUF"],"ru") end
-  if c["SUF"] && c["SUF"].size > 0 then scope_notes << ScopeNote.new(c["SUF"],"es") end
+  if c["SUF"] && c["SUF"].size > 0 then scope_notes << ScopeNote.new(c["SUF"].downcase,"es") end
 
     raw_rbnts["RT"] = parse_rel(c["RT"])
     raw_rbnts["BT"] = parse_rel(c["BT"])
@@ -281,20 +343,16 @@ OptionParser.new do |opts|
     options[:outfile] = file
   end
 
-  opts.on( '-p', '--path DIRECTORY', 'Output path prefix (dir)' ) do |dir|
+  opts.on( '-p', '--path DIR', 'Output directory' ) do |dir|
     options[:path] = dir
   end
 
-  opts.on( '-f', '--format FORMAT', 'Output format: json, xml, or both' ) do |format|
-    options[:format] = format
-  end
 end.parse!
 
 if !options[:infile] then abort "Missing input file argument." end
 if !options[:catdir] then abort "Missing categories directory argument." end
 if !options[:outfile] then abort "Missing output file argument." end
-if !options[:path] then abort "Missing destination path argument." end
-if !options[:format] then abort "Missing output format argument." end
+if !options[:path] then abort "Missing output path argument." end
 
 puts "Parsing #{options[:infile]}"
 concepts = readfile(options[:infile])  
@@ -303,6 +361,7 @@ concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
 #pp concept_schemes
 puts "Now setting top concepts and mapping BTs, NTs, and RTs"
 concepts.each do |concept|
+  print "."
   concept.in_schemes.each do |in_scheme|
     scheme = concept_schemes[concept_schemes.find_index {|s| s.uri == in_scheme}]
     scheme.add_top_concept(concept.uri)
@@ -336,21 +395,61 @@ concepts.each do |concept|
   end
 end
 
-p "Making JSONs in #{options[:path]}/jsons"
-dirs = ["#{options[:path]}","#{options[:path]}/jsons","#{options[:path]}/jsons/scheme","#{options[:path]}/jsons/concept"]
+p "Making JSONs and XMLs in #{options[:path]}/json and #{options[:path]}/xml"
+dirs = ["#{options[:path]}",
+	"#{options[:path]}/json",
+	"#{options[:path]}/json/scheme",
+	"#{options[:path]}/json/concept",
+	"#{options[:path]}/xml",
+	"#{options[:path]}/xml/scheme",
+	"#{options[:path]}/xml/concept"]
 dirs.each do |dir|
   unless Dir.exists?(dir)
     Dir.mkdir(dir) or abort "Unable to create output directory #{dir}"
   end
 end
+print "Schemes"
+File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
+  file.puts '<?xml version="1.0" encoding="UTF-8"?>'
+  file.puts '<rdf:RDF'
+  file.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
+  file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
+  file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
+  file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
+  file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
+  file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
+end
 concept_schemes.each do |scheme|
-  File.open("#{options[:path]}/jsons/scheme/#{scheme.id}.json", "w+") do |file|
+  File.open("#{options[:path]}/json/scheme/#{scheme.id}.json", "w+") do |file|
+    print "|"
     file.puts scheme.to_json
   end
-end
-concepts.each do |concept|
-  File.open("#{options[:path]}/jsons/concept/#{concept.id}.json", "w+") do |file|
-    file.puts concept.to_json
+  File.open("#{options[:path]}/xml/scheme/#{scheme.id}.xml", "w+") do |file|
+    print "/"
+    file.puts scheme.to_xml
+  end
+  File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
+    print "_"
+    file.puts scheme.to_xml
   end
 end
-
+print ".\n"
+print "Concepts"
+concepts.each do |concept|
+  File.open("#{options[:path]}/json/concept/#{concept.id}.json", "w+") do |file|
+    print "|"
+    file.puts concept.to_json
+  end
+  File.open("#{options[:path]}/xml/concept/#{concept.id}.xml", "w+") do |file|
+    print "/"
+    file.puts concept.to_xml
+  end
+  File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
+    print "_"
+    file.puts concept.to_xml
+  end
+end
+File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
+  file.puts "</rdf:RDF>"
+end
+p "."
