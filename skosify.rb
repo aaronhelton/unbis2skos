@@ -79,31 +79,31 @@ class Concept
   end
 
   def to_xml(*a)
-    xml = "<skos:Concept rdf:about=\"#{@uri}\">"
-    xml += "  <skos:externalId>#{@id}</skos:externalId>"
+    xml = "<skos:Concept rdf:about=\"#{@uri}\">\n"
+    xml += "  <skos:externalId>#{@id}</skos:externalId>\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>"
+        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
       else
-        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>"
+        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
       end
     end
     @in_schemes.each do |s|
-      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>"
+      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>\n"
     end
     @broader_terms.each do |b|
-      xml += "  <skos:broader rdf:resource=\"#{b}\"/>"
+      xml += "  <skos:broader rdf:resource=\"#{b}\"/>\n"
     end
     @narrower_terms.each do |n|
-      xml += "  <skos:narrower rdf:resource=\"#{n}\"/>"
+      xml += "  <skos:narrower rdf:resource=\"#{n}\"/>\n"
     end
     @related_terms.each do |r|
-      xml += "  <skos:related rdf:resource=\"#{r}\"/>"
+      xml += "  <skos:related rdf:resource=\"#{r}\"/>\n"
     end
     @scope_notes.each do |s|
-      xml += "  <skos:scopeNote xml:lang=\"#{s.language}\">#{s.text}</skos:scopeNote>"
+      xml += "  <skos:scopeNote xml:lang=\"#{s.language}\">#{s.text}</skos:scopeNote>\n"
     end
-    xml += "</skos:Concept>"
+    xml += "</skos:Concept>\n"
     return xml
   end
 end
@@ -137,18 +137,18 @@ class Scheme
   end
 
   def to_xml(*a)
-    xml = "<skos:ConceptScheme rdf:about=\"#{@uri}\">"
+    xml = "<skos:ConceptScheme rdf:about=\"#{@uri}\">\n"
     @in_schemes.each do |s|
-      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>"
+      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>\n"
     end
     @labels.each do |label|
       # I really should make these Language classes
-      xml += "  <skos:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skos:prefLabel>"
+      xml += "  <skos:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skos:prefLabel>\n"
     end
     @top_concepts.each do |c|
-      xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>"
+      xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
     end
-    xml += "</skos:ConceptScheme>"
+    xml += "</skos:ConceptScheme>\n"
   end
 end
 
