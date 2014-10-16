@@ -3,7 +3,8 @@
 
 ############################################################################
 # To do:
-#	finish format handling (XML, JSON, both)
+#	Add select by category?
+#	Limit language selections?
 ############################################################################
 
 require 'optparse'
@@ -83,9 +84,9 @@ class Concept
     xml += "  <skos:externalId>#{@id}</skos:externalId>\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
+        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
       else
-        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
+        xml += "  <skosxl:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
       end
     end
     @in_schemes.each do |s|
@@ -143,7 +144,7 @@ class Scheme
     end
     @labels.each do |label|
       # I really should make these Language classes
-      xml += "  <skos:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skos:prefLabel>\n"
+        xml += "  <skosxl:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skosxl:prefLabel>\n"
     end
     @top_concepts.each do |c|
       xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
@@ -191,7 +192,7 @@ end
 ## Global Functions
 ##############################
 
-def readfile(infile)
+def readfile(infile, scheme, exclude)
 
   concepts = Array.new
 
@@ -234,7 +235,12 @@ def readfile(infile)
         value = line.split(": ")[1].encode('UTF-8','UTF-8').strip
         sdf_record_hash.merge!(key => value)
       end
-      unless recordid =~ /^P/ || sdf_record_hash["GeogTerm"] == "Yes" || sdf_record_hash["EScope"] =~ /PROVISIONAL\ USE/ || !sdf_record_hash["ESUBFACET"] 
+      # Now apply the pattern of explicit and implicit exclusions and inclusions
+      if scheme && (sdf_record_hash["Facet"][0..(scheme.length - 1)] == scheme || sdf_record_hash["Facet"] =~ /,#{scheme}/)
+        unless recordid =~ /^P/ || sdf_record_hash["EScope"] =~ /PROVISIONAL\ USE/ || !sdf_record_hash["ESUBFACET"] || (sdf_record_hash["GeogTerm"] == "Yes" && sdf_record_hash["PlaceName"] == "Yes") || ( exclude && ((sdf_record_hash["Facet"].split(/,/) - exclude.split(/,/)).size < sdf_record_hash["Facet"].split(/,/).size) )
+          concepts << parse_raw(sdf_record_hash)
+        end
+      elsif !scheme
         concepts << parse_raw(sdf_record_hash)
       end
     end
@@ -261,12 +267,19 @@ def parse_raw(c)
     in_schemes << "/unbist/scheme/#{s[0..1]}"
     in_schemes << "/unbist/scheme/#{s}"
   end
-  if c["AUF"] && c["AUF"].size > 0 then scope_notes << ScopeNote.new(c["AUF"],"ar") end
-  if c["CUF"] && c["CUF"].size > 0 then scope_notes << ScopeNote.new(c["CUF"],"zh") end
-  if c["EUF"] && c["EUF"].size > 0 then scope_notes << ScopeNote.new(c["EUF"].downcase,"en") end
-  if c["FUF"] && c["FUF"].size > 0 then scope_notes << ScopeNote.new(c["FUF"].downcase,"fr") end
-  if c["RUF"] && c["RUF"].size > 0 then scope_notes << ScopeNote.new(c["RUF"],"ru") end
-  if c["SUF"] && c["SUF"].size > 0 then scope_notes << ScopeNote.new(c["SUF"].downcase,"es") end
+  if c["AScope"] && c["AScope"].size > 0 then scope_notes << ScopeNote.new(c["AScope"],"ar") end
+  if c["CScope"] && c["CScope"].size > 0 then scope_notes << ScopeNote.new(c["CScope"],"zh") end
+  if c["EScope"] && c["EScope"].size > 0 then scope_notes << ScopeNote.new(c["EScope"].downcase,"en") end
+  if c["FScope"] && c["FScope"].size > 0 then scope_notes << ScopeNote.new(c["FScope"].downcase,"fr") end
+  if c["RScope"] && c["RScope"].size > 0 then scope_notes << ScopeNote.new(c["RScope"],"ru") end
+  if c["SScope"] && c["SScope"].size > 0 then scope_notes << ScopeNote.new(c["SScope"].downcase,"es") end
+
+  if c["AUF"] && c["AUF"].size > 0 then labels << Label.new(c["AUF"], "ar", "alternate") end 
+  if c["CUF"] && c["CUF"].size > 0 then labels << Label.new(c["CUF"], "zh", "alternate") end 
+  if c["EUF"] && c["EUF"].size > 0 then labels << Label.new(c["EUF"].downcase, "en", "alternate") end 
+  if c["FUF"] && c["FUF"].size > 0 then labels << Label.new(c["FUF"].downcase, "fr", "alternate") end 
+  if c["RUF"] && c["RUF"].size > 0 then labels << Label.new(c["RUF"], "ru", "alternate") end 
+  if c["SUF"] && c["SUF"].size > 0 then labels << Label.new(c["SUF"].downcase, "es", "alternate") end 
 
     raw_rbnts["RT"] = parse_rel(c["RT"])
     raw_rbnts["BT"] = parse_rel(c["BT"])
@@ -347,6 +360,14 @@ OptionParser.new do |opts|
     options[:path] = dir
   end
 
+  opts.on( '-s', '--scheme NAME', 'Limit by Concept Scheme' ) do |scheme|
+    options[:scheme] = scheme
+  end
+
+  opts.on( '-x', '--exclude LIST', 'Comma separated list of schemes to exclude, e.g., 17.05.00,17.06.00' ) do |exclude|
+    options[:exclude] = exclude
+  end
+
 end.parse!
 
 if !options[:infile] then abort "Missing input file argument." end
@@ -355,13 +376,16 @@ if !options[:outfile] then abort "Missing output file argument." end
 if !options[:path] then abort "Missing output path argument." end
 
 puts "Parsing #{options[:infile]}"
-concepts = readfile(options[:infile])  
+concepts = readfile(options[:infile], options[:scheme], options[:exclude])  
 puts "Generating Schemes"
 concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
 #pp concept_schemes
 puts "Now setting top concepts and mapping BTs, NTs, and RTs"
 concepts.each do |concept|
   print "."
+  if !concept.in_schemes.index("/unbist/schemes/#{options[:scheme]}") 
+    next
+  end
   concept.in_schemes.each do |in_scheme|
     scheme = concept_schemes[concept_schemes.find_index {|s| s.uri == in_scheme}]
     scheme.add_top_concept(concept.uri)
@@ -416,6 +440,7 @@ File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
   file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
   file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
   file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
+  file.puts '  xmlns:skosxl="http://www.w3.org/2008/05/skos-xl#"'
   file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
   file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
 end
