@@ -84,9 +84,9 @@ class Concept
     xml += "  <skos:externalId>#{@id}</skos:externalId>\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
+        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:prefLabel>\n"
       else
-        xml += "  <skosxl:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
+        xml += "  <skosxl:altLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:altLabel>\n"
       end
     end
     @in_schemes.each do |s|
@@ -144,7 +144,7 @@ class Scheme
     end
     @labels.each do |label|
       # I really should make these Language classes
-        xml += "  <skosxl:prefLabel xml:lang=\"#{label["language"]}\">#{label["text"]}</skosxl:prefLabel>\n"
+        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:prefLabel>\n"
     end
     @top_concepts.each do |c|
       xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
@@ -157,7 +157,7 @@ class Label
   attr_reader :text, :language, :type
 
   def initialize(text,language, type)
-    @text = text
+    @text = text.upcase
     @language = language
     @type = type
   end
@@ -192,7 +192,7 @@ end
 ## Global Functions
 ##############################
 
-def readfile(infile, scheme, exclude)
+def readfile(infile, scheme, exclude, pattern)
 
   concepts = Array.new
 
@@ -236,12 +236,19 @@ def readfile(infile, scheme, exclude)
         sdf_record_hash.merge!(key => value)
       end
       # Now apply the pattern of explicit and implicit exclusions and inclusions
+      if pattern
+        unless pattern.index(sdf_record_hash["ETerm"].downcase)
+          next
+        end
+      end
       if scheme && (sdf_record_hash["Facet"][0..(scheme.length - 1)] == scheme || sdf_record_hash["Facet"] =~ /,#{scheme}/)
-        unless recordid =~ /^P/ || sdf_record_hash["EScope"] =~ /PROVISIONAL\ USE/ || !sdf_record_hash["ESUBFACET"] || (sdf_record_hash["GeogTerm"] == "Yes" && sdf_record_hash["PlaceName"] == "Yes") || ( exclude && ((sdf_record_hash["Facet"].split(/,/) - exclude.split(/,/)).size < sdf_record_hash["Facet"].split(/,/).size) )
+        unless recordid =~ /^P/ || (!pattern && sdf_record_hash["EScope"] =~ /PROVISIONAL\ USE/) || !sdf_record_hash["ESUBFACET"] || (sdf_record_hash["GeogTerm"] == "Yes" && sdf_record_hash["PlaceName"] == "Yes") || ( exclude && ((sdf_record_hash["Facet"].split(/,/) - exclude.split(/,/)).size < sdf_record_hash["Facet"].split(/,/).size) )
           concepts << parse_raw(sdf_record_hash)
         end
       elsif !scheme
-        concepts << parse_raw(sdf_record_hash)
+        unless recordid =~ /^P/ || (!pattern && sdf_record_hash["EScope"] =~ /PROVISIONAL\ USE/) || !sdf_record_hash["ESUBFACET"] || (sdf_record_hash["GeogTerm"] == "Yes" && sdf_record_hash["PlaceName"] == "Yes") || ( exclude && ((sdf_record_hash["Facet"].split(/,/) - exclude.split(/,/)).size < sdf_record_hash["Facet"].split(/,/).size) )
+          concepts << parse_raw(sdf_record_hash)
+        end
       end
     end
   end
@@ -259,27 +266,27 @@ def parse_raw(c)
   raw_rbnts = Hash.new
   labels = [	Label.new(c["ATerm"],"ar","preferred"), 
 		Label.new(c["CTerm"],"zh","preferred"), 
-		Label.new(c["ETerm"].downcase,"en","preferred"),
-		Label.new(c["FTerm"].downcase,"fr","preferred"),
+		Label.new(c["ETerm"],"en","preferred"),
+		Label.new(c["FTerm"],"fr","preferred"),
 		Label.new(c["RTerm"],"ru","preferred"),
-		Label.new(c["STerm"].downcase,"es","preferred")]
+		Label.new(c["STerm"],"es","preferred")]
   c["SearchFacet"].split(/,/).each do |s|
     in_schemes << "/unbist/scheme/#{s[0..1]}"
     in_schemes << "/unbist/scheme/#{s}"
   end
   if c["AScope"] && c["AScope"].size > 0 then scope_notes << ScopeNote.new(c["AScope"],"ar") end
   if c["CScope"] && c["CScope"].size > 0 then scope_notes << ScopeNote.new(c["CScope"],"zh") end
-  if c["EScope"] && c["EScope"].size > 0 then scope_notes << ScopeNote.new(c["EScope"].downcase,"en") end
-  if c["FScope"] && c["FScope"].size > 0 then scope_notes << ScopeNote.new(c["FScope"].downcase,"fr") end
+  if c["EScope"] && c["EScope"].size > 0 then scope_notes << ScopeNote.new(c["EScope"],"en") end
+  if c["FScope"] && c["FScope"].size > 0 then scope_notes << ScopeNote.new(c["FScope"],"fr") end
   if c["RScope"] && c["RScope"].size > 0 then scope_notes << ScopeNote.new(c["RScope"],"ru") end
-  if c["SScope"] && c["SScope"].size > 0 then scope_notes << ScopeNote.new(c["SScope"].downcase,"es") end
+  if c["SScope"] && c["SScope"].size > 0 then scope_notes << ScopeNote.new(c["SScope"],"es") end
 
   if c["AUF"] && c["AUF"].size > 0 then labels << Label.new(c["AUF"], "ar", "alternate") end 
   if c["CUF"] && c["CUF"].size > 0 then labels << Label.new(c["CUF"], "zh", "alternate") end 
-  if c["EUF"] && c["EUF"].size > 0 then labels << Label.new(c["EUF"].downcase, "en", "alternate") end 
-  if c["FUF"] && c["FUF"].size > 0 then labels << Label.new(c["FUF"].downcase, "fr", "alternate") end 
+  if c["EUF"] && c["EUF"].size > 0 then labels << Label.new(c["EUF"], "en", "alternate") end 
+  if c["FUF"] && c["FUF"].size > 0 then labels << Label.new(c["FUF"], "fr", "alternate") end 
   if c["RUF"] && c["RUF"].size > 0 then labels << Label.new(c["RUF"], "ru", "alternate") end 
-  if c["SUF"] && c["SUF"].size > 0 then labels << Label.new(c["SUF"].downcase, "es", "alternate") end 
+  if c["SUF"] && c["SUF"].size > 0 then labels << Label.new(c["SUF"], "es", "alternate") end 
 
     raw_rbnts["RT"] = parse_rel(c["RT"])
     raw_rbnts["BT"] = parse_rel(c["BT"])
@@ -315,14 +322,14 @@ def merge_categories(catdir)
       in_schemes = Array.new
       File.read("#{catdir}/#{file}").split(/\n/).each do |line|
         label = JSON.parse(line)
-        labels << label
+        labels << Label.new(label["text"],label["language"],"preferred")
       end
       if id.size > 2
-        in_schemes = ["/unbist","/unbist/#{id[0..1]}"]
+        in_schemes = ["/unbist/scheme/00","/unbist/scheme/#{id[0..1]}"]
       elsif id == "00"
         in_schemes = []
       else
-        in_schemes = ["/unbist"]
+        in_schemes = ["/unbist/scheme/00"]
       end
       #p "Making new concept scheme with id: #{id}"
       concept_scheme = Scheme.new(id, uri, labels, in_schemes)
@@ -368,15 +375,24 @@ OptionParser.new do |opts|
     options[:exclude] = exclude
   end
 
+  opts.on( '-a', '--pattern FILE', 'File containing a list of values by which to limit.' ) do |pattern|
+    options[:pattern] = pattern
+  end
+
 end.parse!
 
 if !options[:infile] then abort "Missing input file argument." end
 if !options[:catdir] then abort "Missing categories directory argument." end
 if !options[:outfile] then abort "Missing output file argument." end
 if !options[:path] then abort "Missing output path argument." end
+if options[:pattern] && File.exists?(options[:pattern]) 
+  pattern = (IO.readlines options[:pattern])[0].chomp.split(/,/).map!(&:downcase)
+elsif options[:pattern]
+  abort "Pattern file does not exist."
+end
 
 puts "Parsing #{options[:infile]}"
-concepts = readfile(options[:infile], options[:scheme], options[:exclude])  
+concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern)  
 puts "Generating Schemes"
 concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
 #pp concept_schemes
