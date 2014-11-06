@@ -12,6 +12,7 @@ require 'pp'
 require 'tmpdir'
 require 'json'
 require 'rexml/document'
+require 'spinning_cursor'
 
 include REXML
 
@@ -254,8 +255,6 @@ def readfile(infile, scheme, exclude, pattern)
   end
 
   tmpdir = Dir.mktmpdir or abort "Could not make a temporary directory."
-  p "Writing SDF files to #{tmpdir}."
-  print "["
   i = 0
   File.foreach(infile) do |line|
     if line !~ /:/
@@ -267,16 +266,12 @@ def readfile(infile, scheme, exclude, pattern)
         out.puts line
       end
     end
-    if i > 1000 && i % 1000 == 0 then print "." end
   end
-  print "]\n"
 
   sdf_records_array = Array.new
 
-  print "["
   Dir.foreach(tmpdir) do |file|
     unless file == "." || file == ".."
-      print "."
       recordid = ""
       sdf_record_hash = Hash.new
       #puts "Reading from #{tmpdir}/#{file}"
@@ -305,8 +300,6 @@ def readfile(infile, scheme, exclude, pattern)
       end
     end
   end
-  print "]\n"
-
   return concepts
 end
 
@@ -393,6 +386,23 @@ def merge_categories(catdir)
   return concept_schemes
 end
 
+def show_wait_spinner(fps=10)
+  chars = %w[| / - \\]
+  delay = 1.0/fps
+  iter = 0
+  spinner = Thread.new do
+    while iter do
+      print chars[(iter+=1) % chars.length]
+      sleep delay
+      print "\b"
+    end
+    yield.tap{
+      iter = false
+      spinner.join
+    }
+  end
+end
+
 ##############################
 ## Main Logic ##
 ##############################
@@ -432,6 +442,14 @@ OptionParser.new do |opts|
     options[:pattern] = pattern
   end
 
+  opts.on( '-f', '--format FORMAT', 'Output format. Choose: json, rdfxml, or ntriples.' ) do |format|
+    if format
+      options[:format] = format
+    else
+      options[:format] = 'rdfxml'
+    end
+  end
+
 end.parse!
 
 if !options[:infile] then abort "Missing input file argument." end
@@ -445,13 +463,21 @@ elsif options[:pattern]
 end
 
 puts "Parsing #{options[:infile]}"
+SpinningCursor.run do
+  banner "Making SDFs..."
+  type :spinner
+  message "Done"
+end
 concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern)  
+SpinningCursor.stop
 puts "Generating Schemes"
 concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
-#pp concept_schemes
-puts "Now setting top concepts and mapping BTs, NTs, and RTs"
+
+SpinningCursor.run do
+  banner "Now setting top concepts and mapping BTs, NTs, and RTs..."
+  message "Done"
+end
 concepts.each do |concept|
-  print "."
   if !concept.in_schemes.index("/unbist/schemes/#{options[:scheme]}") 
     next
   end
@@ -461,7 +487,7 @@ concepts.each do |concept|
   end
   if concept.raw_rbnts["RT"]
     concept.raw_rbnts["RT"].each do |rt|
-      idx = concepts.find_index{|c| c.get_id_by(rt.downcase,"en")}
+      idx = concepts.find_index{|c| c.get_id_by(rt,"en")}
       if idx
         related_concept = concepts[idx]
         concept.add_related_term(related_concept.uri)
@@ -470,7 +496,7 @@ concepts.each do |concept|
   end
   if concept.raw_rbnts["BT"]
     concept.raw_rbnts["BT"].each do |bt|
-      idx = concepts.find_index{|c| c.get_id_by(bt.downcase,"en")}
+      idx = concepts.find_index{|c| c.get_id_by(bt,"en")}
       if idx
         broader_concept = concepts[idx]
         concept.add_broader_term(broader_concept.uri)
@@ -479,7 +505,7 @@ concepts.each do |concept|
   end
   if concept.raw_rbnts["NT"]
     concept.raw_rbnts["NT"].each do |nt|
-      idx = concepts.find_index{|c| c.get_id_by(nt.downcase,"en")}
+      idx = concepts.find_index{|c| c.get_id_by(nt,"en")}
       if idx
         narrower_concept = concepts[idx]
         concept.add_narrower_term(narrower_concept.uri)
@@ -487,63 +513,46 @@ concepts.each do |concept|
     end
   end
 end
-
-p "Making JSONs and XMLs in #{options[:path]}/json and #{options[:path]}/xml"
-dirs = ["#{options[:path]}",
-	"#{options[:path]}/json",
-	"#{options[:path]}/json/scheme",
-	"#{options[:path]}/json/concept",
-	"#{options[:path]}/xml",
-	"#{options[:path]}/xml/scheme",
-	"#{options[:path]}/xml/concept"]
-dirs.each do |dir|
-  unless Dir.exists?(dir)
-    Dir.mkdir(dir) or abort "Unable to create output directory #{dir}"
+SpinningCursor.stop
+dir = "#{options[:path]}"
+unless Dir.exists?(dir)
+  Dir.mkdir(dir) or abort "Unable to create output directory #{dir}"
+end
+puts "Writing out to #{options[:path]}/#{options[:outfile]}_#{options[:format]}"
+File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do |file|
+  if options[:format] == 'rdfxml'
+    file.puts '<?xml version="1.0" encoding="UTF-8"?>'
+    file.puts '<rdf:RDF'
+    file.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
+    file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
+    file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
+    file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
+    file.puts '  xmlns:skosxl="http://www.w3.org/2008/05/skos-xl#"'
+    file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
+    file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
+    concept_schemes.each do |scheme|
+      file.puts scheme.to_xml
+    end
+    concepts.each do |concept|
+      file.puts concept.to_xml
+    end
+    file.puts "</rdf:RDF>"
+  elsif options[:format] == 'json'
+    file.puts '{"ConceptSchemes":['
+    concept_schemes.each do |scheme|
+      file.puts scheme.to_json
+    end
+    file.puts '], "Concepts":['
+    concepts.each do |concept|
+      file.puts concept.to_json
+    end
+    file.puts ']}'
+  elsif options[:format] == 'ntriples'
+    concept_schemes.each do |scheme|
+      file.puts scheme.to_triple
+    end
+    concepts.each do |concept|
+      file.puts concept.to_triple
+    end
   end
 end
-print "Schemes"
-File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
-  file.puts '<?xml version="1.0" encoding="UTF-8"?>'
-  file.puts '<rdf:RDF'
-  file.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
-  file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
-  file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
-  file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
-  file.puts '  xmlns:skosxl="http://www.w3.org/2008/05/skos-xl#"'
-  file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
-  file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
-end
-concept_schemes.each do |scheme|
-  File.open("#{options[:path]}/json/scheme/#{scheme.id}.json", "w+") do |file|
-    print "|"
-    file.puts scheme.to_json
-  end
-  File.open("#{options[:path]}/xml/scheme/#{scheme.id}.xml", "w+") do |file|
-    print "/"
-    file.puts scheme.to_xml
-  end
-  File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
-    print "_"
-    file.puts scheme.to_xml
-  end
-end
-print ".\n"
-print "Concepts"
-concepts.each do |concept|
-  File.open("#{options[:path]}/json/concept/#{concept.id}.json", "w+") do |file|
-    print "|"
-    file.puts concept.to_json
-  end
-  File.open("#{options[:path]}/xml/concept/#{concept.id}.xml", "w+") do |file|
-    print "/"
-    file.puts concept.to_xml
-  end
-  File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
-    print "_"
-    file.puts concept.to_xml
-  end
-end
-File.open("#{options[:path]}/xml/#{options[:outfile]}.xml", "a+") do |file|
-  file.puts "</rdf:RDF>"
-end
-p "."
