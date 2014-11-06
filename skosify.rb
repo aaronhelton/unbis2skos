@@ -107,6 +107,37 @@ class Concept
     xml += "</skos:Concept>\n"
     return xml
   end
+
+  def to_triple(*a)
+    # Make an ntriples set for this concept
+    # format: <subject uri> <predicate uri> <object uri>
+    # or
+    # <subject uri> <predicate uri> "literal"@lang
+    triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> \"#{label.text}\"@#{label.language} .\n"
+      else
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> \"#{label.text}\"@#{label.language} .\n"
+      end
+    end
+    @in_schemes.each do |s|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{s}> .\n"
+    end
+    @broader_terms.each do |b|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#broader> <#{b}> .\n"
+    end
+    @narrower_terms.each do |n|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#narrower> <#{n}> .\n"
+    end
+    @related_terms.each do |r|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#related> <#{r}> .\n"
+    end
+    @scope_notes.each do |s|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#scopeNote> \"#{s.text}\"@#{s.language} .\n"
+    end
+    return triple
+  end
 end
 
 class Scheme
@@ -150,6 +181,28 @@ class Scheme
       xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
     end
     xml += "</skos:ConceptScheme>\n"
+  end
+
+  def to_triple(*a)
+    # Make an ntriples set for this concept
+    # format: <subject uri> <predicate uri> <object uri>
+    # or
+    # <subject uri> <predicate uri> "literal"@lang
+    triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#ConceptScheme> .\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> \"#{label.text}\"@#{label.language} .\n"
+      else
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> \"#{label.text}\"@#{label.language} .\n"
+      end
+    end
+    @in_schemes.each do |s|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{s}> .\n"
+    end
+    @top_concepts.each do |c|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#broader> <#{c}> .\n"
+    end
+    return triple
   end
 end
 
