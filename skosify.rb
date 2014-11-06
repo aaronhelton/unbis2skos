@@ -201,7 +201,7 @@ class Scheme
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{s}> .\n"
     end
     @top_concepts.each do |c|
-      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#broader> <#{c}> .\n"
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#hasTopConcept> <#{c}> .\n"
     end
     return triple
   end
@@ -246,7 +246,7 @@ end
 ## Global Functions
 ##############################
 
-def readfile(infile, scheme, exclude, pattern)
+def readfile(infile, scheme, exclude, pattern, tmpdir)
 
   concepts = Array.new
 
@@ -254,7 +254,7 @@ def readfile(infile, scheme, exclude, pattern)
     abort "Input file #{infile} does not exist or is not readable."
   end
 
-  tmpdir = Dir.mktmpdir or abort "Could not make a temporary directory."
+#  tmpdir = Dir.mktmpdir or abort "Could not make a temporary directory."
   i = 0
   File.foreach(infile) do |line|
     if line !~ /:/
@@ -468,7 +468,10 @@ SpinningCursor.run do
   type :spinner
   message "Done"
 end
-concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern)  
+concepts = ''
+Dir.mktmpdir do |dir|
+  concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern, dir)  
+end
 SpinningCursor.stop
 puts "Generating Schemes"
 concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
@@ -478,7 +481,7 @@ SpinningCursor.run do
   message "Done"
 end
 concepts.each do |concept|
-  if !concept.in_schemes.index("/unbist/schemes/#{options[:scheme]}") 
+  if options[:scheme] && !concept.in_schemes.index("/unbist/schemes/#{options[:scheme]}") 
     next
   end
   concept.in_schemes.each do |in_scheme|
@@ -539,13 +542,9 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts "</rdf:RDF>"
   elsif options[:format] == 'json'
     file.puts '{"ConceptSchemes":['
-    concept_schemes.each do |scheme|
-      file.puts scheme.to_json
-    end
+    file.puts concept_schemes.collect{|scheme| scheme.to_json}.join(",")
     file.puts '], "Concepts":['
-    concepts.each do |concept|
-      file.puts concept.to_json
-    end
+    file.puts concepts.collect{|concept| concept.to_json}.join(",")
     file.puts ']}'
   elsif options[:format] == 'ntriples'
     concept_schemes.each do |scheme|
