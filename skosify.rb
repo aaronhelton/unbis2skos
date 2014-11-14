@@ -13,6 +13,7 @@ require 'tmpdir'
 require 'json'
 require 'rexml/document'
 require 'spinning_cursor'
+require 'open-uri'
 
 include REXML
 
@@ -21,13 +22,13 @@ include REXML
 ##############################
 
 class Concept
-  attr_reader :id, :uri, :labels, :in_schemes, :broader_terms, :narrower_terms, :related_terms, :scope_notes, :raw_rbnts
+  attr_reader :id, :uri, :labels, :in_scheme, :broader_terms, :narrower_terms, :related_terms, :scope_notes, :raw_rbnts
 
   def initialize(id, uri,labels,in_schemes,scope_notes, raw_rbnts)
     @id = id
     @uri = uri
     @labels = labels
-    @in_schemes = in_schemes
+    @in_scheme = in_scheme
     @broader_terms = Array.new
     @narrower_terms = Array.new
     @related_terms = Array.new
@@ -71,7 +72,7 @@ class Concept
         "id" => @id, 
 	"uri" => @uri,
         "labels" => @labels.to_json,
-        "in_schemes" => @in_schemes,
+        "in_scheme" => @in_scheme,
         "broader_terms" => @broader_terms,
         "narrower_terms" => @narrower_terms,
         "related_terms" => @related_terms,
@@ -90,9 +91,7 @@ class Concept
         xml += "  <skosxl:altLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:altLabel>\n"
       end
     end
-    @in_schemes.each do |s|
-      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>\n"
-    end
+    xml += "  <skos:inScheme rdf:resource=\"#{@in_scheme}\"/>\n"
     @broader_terms.each do |b|
       xml += "  <skos:broader rdf:resource=\"#{b}\"/>\n"
     end
@@ -117,14 +116,12 @@ class Concept
     triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> \"#{label.text}\"@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> #{label.text.to_json}@#{label.language} .\n"
       else
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> \"#{label.text}\"@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> #{label.text.to_json}@#{label.language} .\n"
       end
     end
-    @in_schemes.each do |s|
-      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{s}> .\n"
-    end
+    triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{@in_scheme}> .\n"
     @broader_terms.each do |b|
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#broader> <#{b}> .\n"
     end
@@ -135,20 +132,79 @@ class Concept
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#related> <#{r}> .\n"
     end
     @scope_notes.each do |s|
-      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#scopeNote> \"#{s.text}\"@#{s.language} .\n"
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#scopeNote> #{s.text.to_json}@#{s.language} .\n"
     end
     return triple
   end
+  # to do: add json-ld, turtle
+end
+
+class Collection
+  attr_reader :id, :uri, :labels, :members
+
+  def intialize(id, uri, labels, members)
+    @id = id
+    @uri = uri
+    @labels = labels
+    @members = Array.new
+  end
+
+  def add_member(uri)
+    @members << uri
+  end
+
+  def to_json(*a)
+    { 
+      "Collection" => {
+        "id" => @id,
+        "uri" => @uri,
+        "labels" => @labels,
+        "members" => @members
+      }
+    }.to_json(*a)
+  end
+
+  def to_xml(*a)
+    xml = "<skos:Collection rdf:about=\"#{@uri}\">\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
+      else
+        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
+      end
+    end
+    @members.each do |member|
+      xml += "  <skos:member rdf:resource=\"#{member}\"/>\n"
+    end
+    xml += "</skos:Collection>\n"
+    return xml
+  end
+
+  def to_triple(*a)
+    triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Collection> .\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#prefLabel> \"#{label.text}\"@#{label.language} .\n"
+      else
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#altLabel> \"#{label.text}\"@#{label.language} .\n"
+      end
+    end
+    @members.each do |member|
+      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#member> <#{member}> .\n"
+    end
+    return triple
+  end
+
+  # to do: add json-ld, turtle
 end
 
 class Scheme
-  attr_reader :id, :uri, :labels, :in_schemes, :top_concepts
+  attr_reader :id, :uri, :labels, :top_concepts
 
   def initialize(id, uri, labels, in_schemes)
     @id = id
     @uri = uri
     @labels = labels
-    @in_schemes = in_schemes
     @top_concepts = Array.new
   end
 
@@ -162,7 +218,6 @@ class Scheme
         "id" => @id,
         "uri" => @uri,
         "labels" => @labels,
-        "in_schemes" => @in_schemes,
         "top_concepts" => @top_concepts
       }
     }.to_json(*a)
@@ -171,9 +226,6 @@ class Scheme
 
   def to_xml(*a)
     xml = "<skos:ConceptScheme rdf:about=\"#{@uri}\">\n"
-    @in_schemes.each do |s|
-      xml += "  <skos:inScheme rdf:resource=\"#{s}\"/>\n"
-    end
     @labels.each do |label|
       # I really should make these Language classes
         xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:prefLabel>\n"
@@ -182,6 +234,7 @@ class Scheme
       xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
     end
     xml += "</skos:ConceptScheme>\n"
+    return xml
   end
 
   def to_triple(*a)
@@ -196,9 +249,6 @@ class Scheme
       else
         triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> \"#{label.text}\"@#{label.language} .\n"
       end
-    end
-    @in_schemes.each do |s|
-      triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{s}> .\n"
     end
     @top_concepts.each do |c|
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#hasTopConcept> <#{c}> .\n"
@@ -305,7 +355,7 @@ end
 
 def parse_raw(c)
   id = c["Recordid"]
-  uri = "/unbist/concept/#{id}"
+  uri = "http://unbis-thesaurus.un.org/c/#{id}"
   labels = Array.new
   in_schemes = Array.new
   scope_notes = Array.new
@@ -317,8 +367,8 @@ def parse_raw(c)
 		Label.new(c["RTerm"],"ru","preferred"),
 		Label.new(c["STerm"],"es","preferred")]
   c["SearchFacet"].split(/,/).each do |s|
-    in_schemes << "/unbist/scheme/#{s[0..1]}"
-    in_schemes << "/unbist/scheme/#{s}"
+    in_schemes << "http://unbis-thesaurus.un.org/s/#{s[0..1]}"
+    in_schemes << "http://unbis-thesaurus.un.org/s/#{s}"
   end
   if c["AScope"] && c["AScope"].size > 0 then scope_notes << ScopeNote.new(c["AScope"],"ar") end
   if c["CScope"] && c["CScope"].size > 0 then scope_notes << ScopeNote.new(c["CScope"],"zh") end
@@ -363,7 +413,7 @@ def merge_categories(catdir)
   Dir.foreach(catdir) do |file|
     unless file == "." || file == ".."
       id = file.gsub(/\./,"").to_s
-      uri = "/unbist/scheme/#{id}"
+      uri = "http://unbis-thesaurus.un.org/s/#{id}"
       labels = Array.new
       in_schemes = Array.new
       File.read("#{catdir}/#{file}").split(/\n/).each do |line|
@@ -371,11 +421,11 @@ def merge_categories(catdir)
         labels << Label.new(label["text"],label["language"],"preferred")
       end
       if id.size > 2
-        in_schemes = ["/unbist/scheme/00","/unbist/scheme/#{id[0..1]}"]
+        in_schemes = ["http://unbis-thesaurus.un.org/s/00","http://unbis-thesaurus.un.org/s/#{id[0..1]}"]
       elsif id == "00"
         in_schemes = []
       else
-        in_schemes = ["/unbist/scheme/00"]
+        in_schemes = ["http://unbis-thesaurus.un.org/s/00"]
       end
       #p "Making new concept scheme with id: #{id}"
       concept_scheme = Scheme.new(id, uri, labels, in_schemes)
@@ -481,7 +531,7 @@ SpinningCursor.run do
   message "Done"
 end
 concepts.each do |concept|
-  if options[:scheme] && !concept.in_schemes.index("/unbist/schemes/#{options[:scheme]}") 
+  if options[:scheme] && !concept.in_schemes.index("http://unbis-thesaurus.un.org/s/#{options[:scheme]}") 
     next
   end
   concept.in_schemes.each do |in_scheme|
