@@ -143,13 +143,15 @@ class Concept
   end
   # to do: add json-ld, turtle
 
-  def write_to_file(path,format,extension)
+  def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
     end
     unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
       File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(header)
         file.puts(self.send("to_#{format}".to_sym))
+        file.puts(footer)
       end
     end
   end
@@ -212,13 +214,15 @@ class Collection
   end
 
   # to do: add json-ld, turtle
-  def write_to_file(path,format,extension)
+  def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
     end
     unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
       File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(header)
         file.puts(self.send("to_#{format}".to_sym))
+        file.puts(footer)
       end
     end
   end
@@ -283,13 +287,15 @@ class Scheme
     return triple
   end
 
-  def write_to_file(path,format,extension)
+  def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
     end
     unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
       File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(header)
         file.puts(self.send("to_#{format}".to_sym))
+        file.puts(footer)
       end
     end
   end
@@ -654,29 +660,31 @@ dir = "#{options[:path]}"
 unless Dir.exists?(dir)
   Dir.mkdir(dir) or abort "Unable to create output directory #{dir}"
 end
+xml_header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rdf:RDF
+  xmlns:rdfs=\"http://www.w3.org/2000/01/rdf-schema#\"
+  xmlns:owl=\"http://www.w3.org/2002/07/owl#\"
+  xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"
+  xmlns:skos=\"http://www.w3.org/2004/02/skos/core#\"
+  xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
+  xmlns:xsd=\"http://www.w3.org/2001/XMLSchema#\">"
+xml_footer = "</rdf:RDF>"
+
 puts "Writing out to #{options[:path]}/#{options[:outfile]}_#{options[:format]}"
 File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do |file|
   if options[:format] == 'xml'
-    file.puts '<?xml version="1.0" encoding="UTF-8"?>'
-    file.puts '<rdf:RDF'
-    file.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
-    file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
-    file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
-    file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
-    file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
-    file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
+    file.puts xml_header
     #if everything above worked out, there should only be one of these
     file.puts $concept_scheme.to_xml
-    if options[:split] then $concept_scheme.write_to_file(options[:path],"xml","xml") end
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
     $collections.each do |collection|
       file.puts collection.to_xml
-      if options[:split] then collection.write_to_file(options[:path],"xml","xml") end
+      if options[:split] then collection.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
     end
     $concepts.each do |concept|
       file.puts concept.to_xml
-      if options[:split] then concept.write_to_file(options[:path],"xml","xml") end
+      if options[:split] then concept.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
     end
-    file.puts "</rdf:RDF>"
   elsif options[:format] == 'json'
     file.puts '{"ConceptScheme": ' + $concept_scheme.to_json
     file.puts '], "Collections":['
@@ -684,23 +692,23 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts '], "Concepts":['
     file.puts $concepts.collect{|concept| concept.to_json}.join(",\n")
     file.puts ']}'
-    if options[:split] then $concept_scheme.write_to_file(options[:path],"json","json") end
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"json","json",nil,nil) end
     $collections.each do |collection|
-      if options[:split] then collection.write_to_file(options[:path],"json","json") end
+      if options[:split] then collection.write_to_file(options[:path],"json","json",nil,nil) end
     end
     $concepts.each do |concept|
-      if options[:split] then concept.write_to_file(options[:path],"json","json") end
+      if options[:split] then concept.write_to_file(options[:path],"json","json",nil,nil) end
     end
   elsif options[:format] == 'ntriples'
     file.puts $concept_scheme.to_triple
-    if options[:split] then $concept_scheme.write_to_file(options[:path],"triple","nt") end
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"triple","nt",nil,nil) end
     $collections.each do |collection|
       file.puts collection.to_triple
-      if options[:split] then collection.write_to_file(options[:path],"triple","nt") end
+      if options[:split] then collection.write_to_file(options[:path],"triple","nt",nil,nil) end
     end
     $concepts.each do |concept|
       file.puts concept.to_triple
-      if options[:split] then concept.write_to_file(options[:path],"triple","nt") end
+      if options[:split] then concept.write_to_file(options[:path],"triple","nt",nil,nil) end
     end
   end
 end
