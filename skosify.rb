@@ -17,12 +17,15 @@ require 'open-uri'
 
 include REXML
 
+## Global vars
+$base_uri = 'http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/'
+
 ##############################
 ## Classes
 ##############################
 
 class Concept
-  attr_reader :id, :uri, :labels, :in_scheme, :broader_terms, :narrower_terms, :related_terms, :scope_notes, :raw_rbnts
+  attr_reader :id, :uri, :labels, :in_scheme, :broader_terms, :narrower_terms, :related_terms, :scope_notes, :raw_rbnts, :collections
 
   def initialize(id, uri,labels,in_schemes,scope_notes, raw_rbnts)
     @id = id
@@ -34,7 +37,10 @@ class Concept
     @related_terms = Array.new
     @scope_notes = scope_notes
     #Raw RTs, BTs, and NTs for later processing, they will be discarded after
-    @raw_rbnts = raw_rbnts	
+    @raw_rbnts = raw_rbnts
+    #collection membership is non-transitive.  This will be a way to signal to 
+    #the collections themselves what members they have	
+    @collections = Array.new
   end
   
   def add_related_term(uri)
@@ -142,7 +148,7 @@ end
 class Collection
   attr_reader :id, :uri, :labels, :members
 
-  def intialize(id, uri, labels, members)
+  def initialize(id, uri, labels)
     @id = id
     @uri = uri
     @labels = labels
@@ -201,7 +207,7 @@ end
 class Scheme
   attr_reader :id, :uri, :labels, :top_concepts
 
-  def initialize(id, uri, labels, in_schemes)
+  def initialize(id, uri, labels)
     @id = id
     @uri = uri
     @labels = labels
@@ -355,9 +361,8 @@ end
 
 def parse_raw(c)
   id = c["Recordid"]
-  uri = "http://unbis-thesaurus.un.org/c/#{id}"
+  uri = "#{$base_uri}#{id}"
   labels = Array.new
-  in_schemes = Array.new
   scope_notes = Array.new
   raw_rbnts = Hash.new
   labels = [	Label.new(c["ATerm"],"ar","preferred"), 
@@ -366,9 +371,12 @@ def parse_raw(c)
 		Label.new(c["FTerm"],"fr","preferred"),
 		Label.new(c["RTerm"],"ru","preferred"),
 		Label.new(c["STerm"],"es","preferred")]
+  in_scheme = $base_uri
   c["SearchFacet"].split(/,/).each do |s|
-    in_schemes << "http://unbis-thesaurus.un.org/s/#{s[0..1]}"
-    in_schemes << "http://unbis-thesaurus.un.org/s/#{s}"
+    collection_idx = $collections.find_index {|c| c.id == s}
+    if collection_idx
+      $collections[collection_idx].add_member(uri)
+    end
   end
   if c["AScope"] && c["AScope"].size > 0 then scope_notes << ScopeNote.new(c["AScope"],"ar") end
   if c["CScope"] && c["CScope"].size > 0 then scope_notes << ScopeNote.new(c["CScope"],"zh") end
@@ -388,7 +396,7 @@ def parse_raw(c)
     raw_rbnts["BT"] = parse_rel(c["BT"])
     raw_rbnts["NT"] = parse_rel(c["NT"])
 
-  concept = Concept.new(id, uri, labels, in_schemes, scope_notes, raw_rbnts)
+  concept = Concept.new(id, uri, labels, in_scheme, scope_notes, raw_rbnts)
   return concept
 end
 
@@ -409,31 +417,66 @@ end
 
 def merge_categories(catdir)
   id = uri = nil
-  concept_schemes = Array.new
+  collections = Array.new
+  # here we are going to attempt some cleverness to keep things concise
+  # first we get the Collection data from the catdir
+  # then we attempt to find the Collection by id from the existing set
+  # if no Collection with that id exists already, we make one
+  # otherwise we update it
+  # when we encounter a sub-Collection, we will want to try creating its parent
+  # but only if it doesn't already exist
   Dir.foreach(catdir) do |file|
     unless file == "." || file == ".."
       id = file.gsub(/\./,"").to_s
-      uri = "http://unbis-thesaurus.un.org/s/#{id}"
+      uri = "#{$base_uri}#{id}"
       labels = Array.new
-      in_schemes = Array.new
       File.read("#{catdir}/#{file}").split(/\n/).each do |line|
         label = JSON.parse(line)
         labels << Label.new(label["text"],label["language"],"preferred")
       end
       if id.size > 2
-        in_schemes = ["http://unbis-thesaurus.un.org/s/00","http://unbis-thesaurus.un.org/s/#{id[0..1]}"]
+        parent_idx = collections.find_index {|p| p.id == id[0..1]}
+        if parent_idx
+          #parent exists, so we just add a member to it
+          collections[parent_idx].add_member(uri)
+        else
+          parent = Collection.new(parent_idx, nil, nil)
+          parent.add_member(uri)
+        end
       elsif id == "00"
-        in_schemes = []
-      else
-        in_schemes = ["http://unbis-thesaurus.un.org/s/00"]
+        #skip this one because it's the ConceptScheme, not a Collection
+        next
       end
-      #p "Making new concept scheme with id: #{id}"
-      concept_scheme = Scheme.new(id, uri, labels, in_schemes)
-      #p concept_scheme
-      concept_schemes << concept_scheme
+      collection_idx = collections.find_index {|c| c.id == id}
+      if collection_idx
+        #already exists, so we can update it
+        collection = collections[collection_idx]
+        collection.labels = labels
+        collection.uri = uri
+      else
+        #create it from info we have on file
+        collection = Collection.new(id, uri, labels)
+        collections << collection
+      end
     end
   end
-  return concept_schemes
+  return collections
+end
+
+def create_concept_scheme(catdir)
+  scheme_id = '00'
+  labels = Array.new
+  unless !File.exists?("#{catdir}/#{scheme_id}")
+    File.read("#{catdir}/#{scheme_id}").split(/\n/).each do |line|
+      label = JSON.parse(line)
+      labels << Label.new(label["text"],label["language"],"preferred")
+    end
+  end
+  concept_scheme = Scheme.new(scheme_id, $base_uri, labels)
+  $concepts.each do |concept|
+    concept_scheme.add_top_concept(concept.uri)
+  end
+  return concept_scheme
 end
 
 def show_wait_spinner(fps=10)
@@ -499,6 +542,9 @@ OptionParser.new do |opts|
       options[:format] = 'rdfxml'
     end
   end
+  opts.on( '-S', '--split', 'Whether or not to split the output into individual files.  Default is false.' ) do |split|
+    #keep going...
+  end
 
 end.parse!
 
@@ -512,6 +558,9 @@ elsif options[:pattern]
   abort "Pattern file does not exist."
 end
 
+puts "Generating Collections"
+$collections = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
+
 puts "Parsing #{options[:infile]}"
 SpinningCursor.run do
   banner "Making SDFs..."
@@ -520,47 +569,47 @@ SpinningCursor.run do
 end
 concepts = ''
 Dir.mktmpdir do |dir|
-  concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern, dir)  
+  $concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern, dir)  
 end
 SpinningCursor.stop
-puts "Generating Schemes"
-concept_schemes = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
+puts "Generatuing ConceptScheme"
+$concept_scheme = create_concept_scheme(options[:catdir])
 
 SpinningCursor.run do
   banner "Now setting top concepts and mapping BTs, NTs, and RTs..."
   message "Done"
 end
-concepts.each do |concept|
-  if options[:scheme] && !concept.in_schemes.index("http://unbis-thesaurus.un.org/s/#{options[:scheme]}") 
+$concepts.each do |concept|
+  if options[:scheme] && !concept.in_schemes.index("#{$base_uri}#{options[:scheme]}") 
     next
   end
-  concept.in_schemes.each do |in_scheme|
-    scheme = concept_schemes[concept_schemes.find_index {|s| s.uri == in_scheme}]
-    scheme.add_top_concept(concept.uri)
-  end
+  #concept.in_schemes.each do |in_scheme|
+  #  scheme = concept_schemes[concept_schemes.find_index {|s| s.uri == in_scheme}]
+  #  scheme.add_top_concept(concept.uri)
+  #end
   if concept.raw_rbnts["RT"]
     concept.raw_rbnts["RT"].each do |rt|
-      idx = concepts.find_index{|c| c.get_id_by(rt,"en")}
+      idx = $concepts.find_index{|c| c.get_id_by(rt,"en")}
       if idx
-        related_concept = concepts[idx]
+        related_concept = $concepts[idx]
         concept.add_related_term(related_concept.uri)
       end
     end
   end
   if concept.raw_rbnts["BT"]
     concept.raw_rbnts["BT"].each do |bt|
-      idx = concepts.find_index{|c| c.get_id_by(bt,"en")}
+      idx = $concepts.find_index{|c| c.get_id_by(bt,"en")}
       if idx
-        broader_concept = concepts[idx]
+        broader_concept = $concepts[idx]
         concept.add_broader_term(broader_concept.uri)
       end
     end
   end
   if concept.raw_rbnts["NT"]
     concept.raw_rbnts["NT"].each do |nt|
-      idx = concepts.find_index{|c| c.get_id_by(nt,"en")}
+      idx = $concepts.find_index{|c| c.get_id_by(nt,"en")}
       if idx
-        narrower_concept = concepts[idx]
+        narrower_concept = $concepts[idx]
         concept.add_narrower_term(narrower_concept.uri)
       end
     end
@@ -583,24 +632,28 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts '  xmlns:skosxl="http://www.w3.org/2008/05/skos-xl#"'
     file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
     file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
-    concept_schemes.each do |scheme|
-      file.puts scheme.to_xml
+    #if everything above worked out, there should only be one of these
+    file.puts $concept_scheme.to_xml
+    $collections.each do |collection|
+      file.puts collection.to_xml
     end
-    concepts.each do |concept|
+    $concepts.each do |concept|
       file.puts concept.to_xml
     end
     file.puts "</rdf:RDF>"
   elsif options[:format] == 'json'
-    file.puts '{"ConceptSchemes":['
-    file.puts concept_schemes.collect{|scheme| scheme.to_json}.join(",")
+    file.puts '{"ConceptScheme": ' + $concept_scheme.to_json
+    file.puts '], "Collections":['
+    file.puts $collections.collect{|collection| collection.to_json}.join(",\n")
     file.puts '], "Concepts":['
-    file.puts concepts.collect{|concept| concept.to_json}.join(",")
+    file.puts $concepts.collect{|concept| concept.to_json}.join(",\n")
     file.puts ']}'
   elsif options[:format] == 'ntriples'
-    concept_schemes.each do |scheme|
-      file.puts scheme.to_triple
+    file.puts $concept_scheme.to_triple
+    $collections.each do |collection|
+      file.puts collection.to_triple
     end
-    concepts.each do |concept|
+    $concepts.each do |concept|
       file.puts concept.to_triple
     end
   end
