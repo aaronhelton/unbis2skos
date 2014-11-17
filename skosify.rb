@@ -13,7 +13,6 @@ require 'tmpdir'
 require 'json'
 require 'rexml/document'
 require 'spinning_cursor'
-require 'open-uri'
 
 include REXML
 
@@ -27,7 +26,7 @@ $base_uri = 'http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/'
 class Concept
   attr_reader :id, :uri, :labels, :in_scheme, :broader_terms, :narrower_terms, :related_terms, :scope_notes, :raw_rbnts, :collections
 
-  def initialize(id, uri,labels,in_schemes,scope_notes, raw_rbnts)
+  def initialize(id, uri,labels,in_scheme,scope_notes, raw_rbnts)
     @id = id
     @uri = uri
     @labels = labels
@@ -92,9 +91,9 @@ class Concept
     xml += "  <skos:externalId>#{@id}</skos:externalId>\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:prefLabel>\n"
+        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
       else
-        xml += "  <skosxl:altLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:altLabel>\n"
+        xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
       end
     end
     xml += "  <skos:inScheme rdf:resource=\"#{@in_scheme}\"/>\n"
@@ -122,9 +121,9 @@ class Concept
     triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> #{label.text.to_json}@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#prefLabel> #{label.text.to_json}@#{label.language} .\n"
       else
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> #{label.text.to_json}@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#altLabel> #{label.text.to_json}@#{label.language} .\n"
       end
     end
     triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{@in_scheme}> .\n"
@@ -143,6 +142,17 @@ class Concept
     return triple
   end
   # to do: add json-ld, turtle
+
+  def write_to_file(path,format,extension)
+    unless Dir.exists?("#{path}/#{format}")
+      Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
+    end
+    unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
+      File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(self.send("to_#{format}".to_sym))
+      end
+    end
+  end
 end
 
 class Collection
@@ -202,6 +212,17 @@ class Collection
   end
 
   # to do: add json-ld, turtle
+  def write_to_file(path,format,extension)
+    unless Dir.exists?("#{path}/#{format}")
+      Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
+    end
+    unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
+      File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(self.send("to_#{format}".to_sym))
+      end
+    end
+  end
+
 end
 
 class Scheme
@@ -234,7 +255,7 @@ class Scheme
     xml = "<skos:ConceptScheme rdf:about=\"#{@uri}\">\n"
     @labels.each do |label|
       # I really should make these Language classes
-        xml += "  <skosxl:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skosxl:prefLabel>\n"
+        xml += "  <skos:prefLabel xml:lang=\"#{label.language}\">#{label.text}</skos:prefLabel>\n"
     end
     @top_concepts.each do |c|
       xml += "  <skos:hasTopConcept rdf:resource=\"#{c}\"/>\n"
@@ -251,9 +272,9 @@ class Scheme
     triple = "<#{@uri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#ConceptScheme> .\n"
     @labels.each do |label|
       if label.type == 'preferred'
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#prefLabel> \"#{label.text}\"@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#prefLabel> \"#{label.text}\"@#{label.language} .\n"
       else
-        triple += "<#{@uri}> <http://www.w3.org/2008/05/skos-xl#altLabel> \"#{label.text}\"@#{label.language} .\n"
+        triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#altLabel> \"#{label.text}\"@#{label.language} .\n"
       end
     end
     @top_concepts.each do |c|
@@ -261,6 +282,18 @@ class Scheme
     end
     return triple
   end
+
+  def write_to_file(path,format,extension)
+    unless Dir.exists?("#{path}/#{format}")
+      Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
+    end
+    unless File.exists?("#{path}/#{format}/#{@id}.#{extension}")
+      File.open("#{path}/#{format}/#{@id}.#{extension}", "a+") do |file|
+        file.puts(self.send("to_#{format}".to_sym))
+      end
+    end
+  end
+
 end
 
 class Label
@@ -535,16 +568,17 @@ OptionParser.new do |opts|
     options[:pattern] = pattern
   end
 
-  opts.on( '-f', '--format FORMAT', 'Output format. Choose: json, rdfxml, or ntriples.' ) do |format|
+  opts.on( '-f', '--format FORMAT', 'Output format. Choose: json, xml, or triple.' ) do |format|
     if format
       options[:format] = format
     else
-      options[:format] = 'rdfxml'
+      options[:format] = 'xml'
     end
   end
   opts.on( '-S', '--split', 'Whether or not to split the output into individual files.  Default is false.' ) do |split|
-    #keep going...
+    options[:split] = true
   end
+
 
 end.parse!
 
@@ -622,23 +656,25 @@ unless Dir.exists?(dir)
 end
 puts "Writing out to #{options[:path]}/#{options[:outfile]}_#{options[:format]}"
 File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do |file|
-  if options[:format] == 'rdfxml'
+  if options[:format] == 'xml'
     file.puts '<?xml version="1.0" encoding="UTF-8"?>'
     file.puts '<rdf:RDF'
     file.puts '  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"'
     file.puts '  xmlns:owl="http://www.w3.org/2002/07/owl#"'
     file.puts '  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"'
     file.puts '  xmlns:skos="http://www.w3.org/2004/02/skos/core#"'
-    file.puts '  xmlns:skosxl="http://www.w3.org/2008/05/skos-xl#"'
     file.puts '  xmlns:dc="http://purl.org/dc/elements/1.1/"'
     file.puts '  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">'
     #if everything above worked out, there should only be one of these
     file.puts $concept_scheme.to_xml
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"xml","xml") end
     $collections.each do |collection|
       file.puts collection.to_xml
+      if options[:split] then collection.write_to_file(options[:path],"xml","xml") end
     end
     $concepts.each do |concept|
       file.puts concept.to_xml
+      if options[:split] then concept.write_to_file(options[:path],"xml","xml") end
     end
     file.puts "</rdf:RDF>"
   elsif options[:format] == 'json'
@@ -648,13 +684,23 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts '], "Concepts":['
     file.puts $concepts.collect{|concept| concept.to_json}.join(",\n")
     file.puts ']}'
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"json","json") end
+    $collections.each do |collection|
+      if options[:split] then collection.write_to_file(options[:path],"json","json") end
+    end
+    $concepts.each do |concept|
+      if options[:split] then concept.write_to_file(options[:path],"json","json") end
+    end
   elsif options[:format] == 'ntriples'
     file.puts $concept_scheme.to_triple
+    if options[:split] then $concept_scheme.write_to_file(options[:path],"triple","nt") end
     $collections.each do |collection|
       file.puts collection.to_triple
+      if options[:split] then collection.write_to_file(options[:path],"triple","nt") end
     end
     $concepts.each do |concept|
       file.puts concept.to_triple
+      if options[:split] then concept.write_to_file(options[:path],"triple","nt") end
     end
   end
 end
