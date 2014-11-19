@@ -17,7 +17,7 @@ require 'spinning_cursor'
 include REXML
 
 ## Global vars
-$base_uri = 'http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/'
+$base_uri = 'http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/?t='
 
 ##############################
 ## Classes
@@ -143,6 +143,35 @@ class Concept
   end
   # to do: add json-ld, turtle
 
+  def to_turtle(*a)
+    turtle_array = Array.new
+    turtle = "<#{$base_uri}#{@id}> \n"
+    turtle += "\trdf:type skos:Concept ;\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        turtle_array << "\tskos:prefLabel #{label.text.to_json}@#{label.language} "
+      else
+        turtle_array << "\tskos:altLabel #{label.text.to_json}@#{label.language} "
+      end
+    end
+    turtle_array << "\tskos:inScheme <#{@in_scheme}> "
+    @broader_terms.each do |b|
+      turtle_array << "\tskos:broader <#{b}> "
+    end
+    @narrower_terms.each do |n|
+      turtle_array << "\tskos:narrower <#{n}> "
+    end
+    @related_terms.each do |r|
+      turtle_array << "\tskos:related <#{r}> "
+    end
+    sn_array = Array.new
+    @scope_notes.each do |s|
+      turtle_array << "\tskos:scopeNote #{s.text.to_json}@#{s.language} "
+    end
+    turtle += turtle_array.join(";\n") + ".\n"
+    return turtle
+  end
+
   def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
@@ -158,12 +187,13 @@ class Concept
 end
 
 class Collection
-  attr_reader :id, :uri, :labels, :members
+  attr_reader :id, :uri, :labels, :in_scheme, :members
 
-  def initialize(id, uri, labels)
+  def initialize(id, uri, labels, in_scheme)
     @id = id
     @uri = uri
     @labels = labels
+    @in_scheme = in_scheme
     @members = Array.new
   end
 
@@ -191,6 +221,7 @@ class Collection
         xml += "  <skos:altLabel xml:lang=\"#{label.language}\">#{label.text}</skos:altLabel>\n"
       end
     end
+    xml += "  <skos:inScheme rdf:resource=\"#{@in_scheme}\"/>\n"
     @members.each do |member|
       xml += "  <skos:member rdf:resource=\"#{member}\"/>\n"
     end
@@ -207,6 +238,7 @@ class Collection
         triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#altLabel> \"#{label.text}\"@#{label.language} .\n"
       end
     end
+    triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#inScheme> <#{@in_scheme}> .\n"
     @members.each do |member|
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#member> <#{member}> .\n"
     end
@@ -214,6 +246,26 @@ class Collection
   end
 
   # to do: add json-ld, turtle
+  def to_turtle(*a)
+    #must define @base in turtle_header below
+    turtle = "<#{$base_uri}#{@id}> \n"
+    turtle += "\trdf:type skos:Collection ;\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        turtle += "\tskos:prefLabel #{label.text.to_json}@#{label.language} ;\n"
+      else
+        turtle += "\tskos:altLabel #{label.text.to_json}@#{label.language} ;\n"
+      end
+    end
+    turtle += "\tskos:inScheme <#{@in_scheme}> ;\n"
+    members_array = Array.new
+    @members.each do |r|
+      members_array << "\tskos:member <#{r}> "
+    end
+    turtle += members_array.join(";\n") + ".\n"
+    return turtle
+  end
+
   def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
@@ -285,6 +337,25 @@ class Scheme
       triple += "<#{@uri}> <http://www.w3.org/2004/02/skos/core#hasTopConcept> <#{c}> .\n"
     end
     return triple
+  end
+
+  def to_turtle(*a)
+    #must define @base in turtle_header below
+    turtle = "<#{$base_uri}#{@id}> \n"
+    turtle += "\trdf:type skos:ConceptScheme ;\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        turtle += "\tskos:prefLabel #{label.text.to_json}@#{label.language} ;\n"
+      else
+        turtle += "\tskos:altLabel #{label.text.to_json}@#{label.language} ;\n"
+      end
+    end
+    topconcepts_array = Array.new
+    @top_concepts.each do |r|
+      topconcepts_array << "\tskos:hasTopConcept <#{r}> "
+    end
+    turtle += topconcepts_array.join(";\n") + ".\n"
+    return turtle
   end
 
   def write_to_file(path,format,extension,header,footer)
@@ -410,7 +481,7 @@ def parse_raw(c)
 		Label.new(c["FTerm"],"fr","preferred"),
 		Label.new(c["RTerm"],"ru","preferred"),
 		Label.new(c["STerm"],"es","preferred")]
-  in_scheme = $base_uri
+  in_scheme = $base_uri + "00"
   c["SearchFacet"].split(/,/).each do |s|
     collection_idx = $collections.find_index {|c| c.id == s}
     if collection_idx
@@ -479,7 +550,7 @@ def merge_categories(catdir)
           #parent exists, so we just add a member to it
           collections[parent_idx].add_member(uri)
         else
-          parent = Collection.new(parent_idx, nil, nil)
+          parent = Collection.new(parent_idx, nil, nil,$base_uri)
           parent.add_member(uri)
         end
       elsif id == "00"
@@ -494,7 +565,7 @@ def merge_categories(catdir)
         collection.uri = uri
       else
         #create it from info we have on file
-        collection = Collection.new(id, uri, labels)
+        collection = Collection.new(id, uri, labels, $base_uri + "00")
         collections << collection
       end
     end
@@ -670,6 +741,10 @@ xml_header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
   xmlns:xsd=\"http://www.w3.org/2001/XMLSchema#\">"
 xml_footer = "</rdf:RDF>"
 
+turtle_header = "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
+turtle_header += "@prefix skos: <http://www.w3.org/2004/02/skos/core#> .\n"
+turtle_header += "@base <#{$base_uri}> .\n\n"
+
 puts "Writing out to #{options[:path]}/#{options[:outfile]}_#{options[:format]}"
 File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do |file|
   if options[:format] == 'xml'
@@ -699,7 +774,7 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     $concepts.each do |concept|
       if options[:split] then concept.write_to_file(options[:path],"json","json",nil,nil) end
     end
-  elsif options[:format] == 'ntriples'
+  elsif options[:format] == 'triple'
     file.puts $concept_scheme.to_triple
     if options[:split] then $concept_scheme.write_to_file(options[:path],"triple","nt",nil,nil) end
     $collections.each do |collection|
@@ -709,6 +784,18 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     $concepts.each do |concept|
       file.puts concept.to_triple
       if options[:split] then concept.write_to_file(options[:path],"triple","nt",nil,nil) end
+    end
+  elsif options[:format] == 'turtle'
+    file.puts turtle_header
+    file.puts $concept_scheme.to_turtle
+    if options[:split] then $concept_scheme.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
+    $collections.each do |collection|
+      file.puts collection.to_turtle
+      if options[:split] then collection.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
+    end
+    $concepts.each do |concept|
+      file.puts concept.to_turtle
+      if options[:split] then concept.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
     end
   end
 end
