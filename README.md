@@ -3,7 +3,20 @@ unbis2skos
 
 Converts UNBIS Thesaurus SDF files to SKOS Core
 
-It's a fairly straightforward script.  
+skosify.rb is the magnum opus of this enterprise.  It reads the SDF file, splits it into temp files, creates individual instances of class Concept, does the same for categories, which become Collections, and finally maps Collection memberships, inScheme and hasTopConcept assignments, and broader, narrower, and related matches.  All of this is placed in the ConceptScheme.
+
+Output options include single and split files (one ConceptScheme, Collection, or Concept per file), RDF/XML, JSON, nTriples, and Turtle.
+
+To do:
+
+Add JSON-LD output
+Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
+
+See it in action here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
+Code for the web portion was built with Dart.  Repo coming soon.
+
+==========
+voc.rb is the old script.  It works as follows.
 
 Steps:
 
