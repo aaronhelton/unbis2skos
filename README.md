@@ -9,10 +9,11 @@ Output options include single and split files (one ConceptScheme, Collection, or
 
 To do:
 
-Add JSON-LD output
-Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
+1.  Add JSON-LD output
+2.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
 
 See it in action here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
+
 Code for the web portion was built with Dart.  Repo coming soon.
 
 ==========
