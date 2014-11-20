@@ -11,10 +11,12 @@ To do:
 
 1.  Add JSON-LD output
 2.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
+3.  Add skos:notation fields, especially to Collections
+4.  Create a meta-Collection consisting of all top level Collections.
 
 See it in action here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
 
-Code for the web portion was built with Dart.  Repo coming soon.
+Code for the web portion was built with Dart: https://github.com/aaronhelton/unbis-dart
 
 ==========
 voc.rb is the old script.  It works as follows.
