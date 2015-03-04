@@ -1,6 +1,6 @@
 class Domain
-  #un:domain
-  # each un:domain has zero or more un:microthesauri
+  #eu:domain
+  # each eu:domain has zero or more eu:microthesauri
   attr_reader :id, :uri, :labels, :microthesauri, :in_scheme
 
   def initialize(id, uri, labels, in_scheme)

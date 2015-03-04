@@ -1,6 +1,6 @@
 class Microthesaurus
-  #un:microthesaurus
-  #each un:microthesaurus belongs to exactly one un:domain
+  #eu:microthesaurus
+  #each eu:microthesaurus belongs to exactly one eu:domain
   #unclear if we really need in_scheme at this level; leaving it out for now...
   attr_reader :id, :uri, :labels, :domain, :members
 
