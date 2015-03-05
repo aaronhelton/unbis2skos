@@ -1,3 +1,23 @@
+################################
+# Implementation Details
+# name:	Concept
+# type:	skos:Concept
+# has: 	uri
+#	1+ skos:prefLabel for each xml:lang
+#	1 skos:notation
+#	1 owl:sameAs matching local URI with original UNBIS Thesaurus
+#	1+ eu:microthesaurus
+#	1+ eu:domain
+#	1 skos:inScheme
+#	0+ skos:scopeNote, each with xml:lang
+#	0+ skos:broader
+#	0+ skos:narrower
+#	0+ skos:related
+#	0+ skos:exactMatch
+#	0+ skos:broadMatch
+#	0+ skos:narrowMatch
+#	0+ skos:relatedMatch
+#	0+ skos:closeMatch
 class Concept
   attr_reader   :id,
                 :uri,
@@ -11,7 +31,12 @@ class Concept
                 :scope_notes, 
                 :raw_rbnts,
                 :domains, 
-                :microthesauri 
+                :microthesauri,
+		:exact_matches,
+		:close_matches,
+		:narrow_matches,
+		:broad_matches,
+		:related_matches
 
   def initialize(id, uri, owl_sameas, notation, labels,in_scheme,scope_notes, raw_rbnts)
     @id = id
@@ -32,6 +57,11 @@ class Concept
     #See http://eurovoc.europa.eu/drupal/?q=node/555 for more details
     @domains = Array.new
     @microthesauri = Array.new
+    @exact_matches = Array.new
+    @close_matches = Array.new
+    @narrow_matches = Array.new
+    @broad_matches = Array.new
+    @related_matches = Array.new
   end
 
   def add_related_term(uri)
@@ -183,13 +213,19 @@ class Concept
       end
     end
     @broader_terms.each do |b|
-      #todo
+      tid = b.split(/\//).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: #{tid}])"
     end
     @narrower_terms.each do |n|
-      #todo
+      tid = b.split(/\//).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: #{tid}])"
     end
     @related_terms.each do |r|
-      #todo
+      tid = b.split(/\//).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: #{tid}])"
     end
     @scope_notes.each do |s|
       #todo
