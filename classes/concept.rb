@@ -64,6 +64,7 @@ class Concept
     @related_matches = Array.new
   end
 
+  # These methods don't seem DRY enough...
   def add_related_term(uri)
     @related_terms << uri
   end
@@ -82,6 +83,26 @@ class Concept
 
   def add_microthesaurus(uri)
     @microthesauri << uri
+  end
+
+  def add_exact_match(uri)
+    @exact_matches << uri
+  end
+
+  def add_close_match(uri)
+    @close_matches << uri
+  end
+
+  def add_narrow_match(uri)
+    @narrow_matches << uri
+  end
+
+  def add_broad_match(uri)
+    @broad_matches << uri
+  end
+
+  def add_related_match(uri)
+    @related_matches << uri
   end
 
   def get_label_by(lang)
@@ -213,22 +234,23 @@ class Concept
       end
     end
     @broader_terms.each do |b|
-      tid = b.split(/\//).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: #{tid}])"
+      tid = b.split(/\//).last.split(/\=/).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])\n"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @narrower_terms.each do |n|
-      tid = b.split(/\//).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: #{tid}])"
+      tid = n.split(/\//).last.split(/\=/).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])\n"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @related_terms.each do |r|
-      tid = b.split(/\//).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: #{tid}])"
+      tid = r.split(/\//).last.split(/\=/).last
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])\n"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @scope_notes.each do |s|
-      #todo
+      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'scopeNote').id, literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id])\n"
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'scopeNote').id, object_id: (Resource.find_by literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id).id])\n"
     end
     return sql
   end
