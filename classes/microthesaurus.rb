@@ -1,6 +1,13 @@
+################################
+# Implementation Details
+# name: Microthesaurus
+# type: eu:MicroThesaurus
+# has:	uri
+#	1+ skos:prefLabel, unique for each of six xml:lang
+#	0+ skos:altLabel, each assigned one xml:lang
+#	1 eu:domain
+#	0+ skos:hasTopConcept
 class Microthesaurus
-  #eu:microthesaurus
-  #each eu:microthesaurus belongs to exactly one eu:domain
   #unclear if we really need in_scheme at this level; leaving it out for now...
   attr_reader :id, :uri, :labels, :domain, :members
 
@@ -9,11 +16,11 @@ class Microthesaurus
     @uri = uri
     @labels = labels
     @domain = domain
-    @members = Array.new
+    @top_concepts = Array.new
   end
 
-  def add_member(uri)
-    @members << uri
+  def add_top_concepts(uri)
+    @top_concepts << uri
   end
 
   def to_json(*a)
@@ -38,7 +45,22 @@ class Microthesaurus
   end
 
   def to_rails
-
+    sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Concept').id, literal: '#{@id}'])\n"
+    @labels.each do |label|
+      if label.type == 'preferred'
+        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+      else
+        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+      end
+    end
+    domain = @domain.split(/\=/).last
+    sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'domain').id, object_id: (Resource.find_by literal: '#{domain}').id])\n"
+    @top_concepts.each do |c|
+      tid = c.split(/\=/).last
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'hasTopConcept').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+    end
   end
 
   def write_to_file(path,format,extension,header,footer)

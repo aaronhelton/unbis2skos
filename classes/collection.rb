@@ -1,3 +1,16 @@
+################################
+# Implementation Details
+# name:	Collection
+# type:	skos:Collection
+# has: 	1+ skos:prefLabel, unique for each of six xml:lang
+#	1 skos:inScheme
+#	0+ skos:altLabel, each assigned one xml:lang
+#	0+ skos:member (is a skos:Concept)
+# Note:	This is the only SKOS-native segmentation of a ConceptScheme available, 
+#	but it is unidirectional (Collection > Member but Concept !< Collection).
+#	The issue is solved by eu:Domain/eu:domain and 
+#	eu:MicroThesaurus/eu:microthesaurus
+#	See http://eurovoc.europa.eu/drupal/?q=node/555 for more details
 class Collection
   attr_reader :id, :uri, :labels, :in_scheme, :members
 
@@ -76,6 +89,10 @@ class Collection
     end
     turtle += members_array.join(";\n") + ".\n"
     return turtle
+  end
+
+  def to_rails
+    #todo for completeness
   end
 
   def write_to_file(path,format,extension,header,footer)

@@ -1,3 +1,12 @@
+################################
+# Implementation Details
+# name: Scheme
+# type: skos:ConceptScheme
+# has: 	uri
+#	1+ skos:prefLabel, unique for each of six xml:lang
+#	0+ skos:altLabel, each assigned one xml:lang
+#	0+ eu:doman
+#	0+ skos:hasTopConcept; while technically correct, using this is not recommended for large concept lists
 class Scheme
   attr_reader :id, :uri, :labels, :top_concepts, :domains
 

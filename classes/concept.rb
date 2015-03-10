@@ -3,7 +3,8 @@
 # name:	Concept
 # type:	skos:Concept
 # has: 	uri
-#	1+ skos:prefLabel for each xml:lang
+#	1+ skos:prefLabel, unique for each of six xml:lang
+#	0+ skos:altLabel, each assigned one xml:lang
 #	1 skos:notation
 #	1 owl:sameAs matching local URI with original UNBIS Thesaurus
 #	1+ eu:microthesaurus
@@ -235,23 +236,24 @@ class Concept
     end
     @broader_terms.each do |b|
       tid = b.split(/\//).last.split(/\=/).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])\n"
+      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])\n"
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @narrower_terms.each do |n|
       tid = n.split(/\//).last.split(/\=/).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])\n"
+      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])\n"
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @related_terms.each do |r|
       tid = r.split(/\//).last.split(/\=/).last
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])\n"
+      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])\n"
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @scope_notes.each do |s|
       sql += "Resource.create([archetype_id: (Archetype.find_by name: 'scopeNote').id, literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id])\n"
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'scopeNote').id, object_id: (Resource.find_by literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id).id])\n"
     end
+    #todo: @broad_matches, @narrow_matches, @close_matches, @related_matches; requires additional information
     return sql
   end
 

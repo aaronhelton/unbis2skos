@@ -1,3 +1,11 @@
+################################
+# Implementation Details
+# name: Domain
+# type:	eu:Domain
+# has:	1+ skos:prefLabel, unique for each of six xml:lang
+#	0+ skos:altLabel, each assigned one xml:lang
+#	0+ eu:microthesaurus
+#	1 skos:inScheme
 class Domain
   #eu:domain
   # each eu:domain has zero or more eu:microthesauri
@@ -52,7 +60,8 @@ class Domain
       end
     end
     @microthesauri.each do |m|
-      #
+      tid = split(/\//).last.split(/\=/).last
+      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'microthesaurus').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     return sql
   end
