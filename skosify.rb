@@ -214,6 +214,16 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     end
   elsif options[:format] == 'rails'
     file.puts $concept_scheme.to_rails
+    #the resulting sql could fail at rake db:seed time...
+    $collections.each do |collection|
+      file.puts collection.to_rails
+    end
+    $domains.each do |domain|
+      file.puts domain.to_rails
+    end
+    $microthesauri.each do |mt|
+      file.puts mt.to_rails
+    end
     $concepts.each do |concept|
       file.puts concept.to_rails
     end
