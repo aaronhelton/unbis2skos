@@ -7,8 +7,6 @@
 #	0+ eu:microthesaurus
 #	1 skos:inScheme
 class Domain
-  #eu:domain
-  # each eu:domain has zero or more eu:microthesauri
   attr_reader :id, :uri, :labels, :microthesauri, :in_scheme
 
   def initialize(id, uri, labels, in_scheme)
@@ -56,7 +54,7 @@ class Domain
       end
     end
     @microthesauri.each do |m|
-      tid = split(/\//).last.split(/\=/).last
+      tid = m.split(/\//).last.split(/\=/).last
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'microthesaurus').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     return sql
@@ -74,5 +72,4 @@ class Domain
       end
     end
   end
-
 end

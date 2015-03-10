@@ -85,6 +85,12 @@ end
 puts "Generating Collections"
 $collections = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
 
+puts "Generating Domains and Microthesauri"
+dmt = make_domains_and_microthesauri(options[:catdir])
+$domains = dmt[0]
+$microthesauri = dmt[1]
+#puts $microthesauri.inspect
+
 puts "Parsing #{options[:infile]}"
 SpinningCursor.run do
   banner "Making SDFs..."
@@ -98,11 +104,6 @@ end
 SpinningCursor.stop
 puts "Generating ConceptScheme"
 $concept_scheme = create_concept_scheme(options[:catdir])
-
-puts "Generating Domains and Microthesauri"
-dmt = make_domains_and_microthesauri(options[:catdir])
-$domains = dmt[0]
-$microthesauri = dmt[1]
 
 SpinningCursor.run do
   banner "Now setting top concepts and mapping BTs, NTs, and RTs..."

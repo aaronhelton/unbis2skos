@@ -9,7 +9,7 @@
 #	0+ skos:hasTopConcept
 class Microthesaurus
   #unclear if we really need in_scheme at this level; leaving it out for now...
-  attr_reader :id, :uri, :labels, :domain, :members
+  attr_reader :id, :uri, :labels, :domain, :top_concepts
 
   def initialize(id, uri, labels, domain)
     @id = id
@@ -19,7 +19,7 @@ class Microthesaurus
     @top_concepts = Array.new
   end
 
-  def add_top_concepts(uri)
+  def add_top_concept(uri)
     @top_concepts << uri
   end
 
@@ -45,7 +45,7 @@ class Microthesaurus
   end
 
   def to_rails
-    sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Concept').id, literal: '#{@id}'])\n"
+    sql = "Resource.create([archetype_id: (Archetype.find_by name: 'MicroThesaurus').id, literal: '#{@id}'])\n"
     @labels.each do |label|
       if label.type == 'preferred'
         sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
@@ -61,6 +61,7 @@ class Microthesaurus
       tid = c.split(/\=/).last
       sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'hasTopConcept').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
+    return sql
   end
 
   def write_to_file(path,format,extension,header,footer)

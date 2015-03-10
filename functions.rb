@@ -77,6 +77,11 @@ def parse_raw(c)
     if collection_idx
       $collections[collection_idx].add_member(uri)
     end
+    mt_idx = $microthesauri.find_index {|mt| mt.id == s}
+    if mt_idx
+      #puts "Adding #{uri} to top_concepts of #{$microthesauri[mt_idx].id}"
+      $microthesauri[mt_idx].add_top_concept(uri)
+    end
   end
   if c["AScope"] && c["AScope"].size > 0 then scope_notes << ScopeNote.new(c["AScope"],"ar") end
   if c["CScope"] && c["CScope"].size > 0 then scope_notes << ScopeNote.new(c["CScope"],"zh") end
@@ -180,7 +185,7 @@ def make_domains_and_microthesauri(catdir)
       if id.size > 2
         mt_idx = microthesauri.find_index {|m| m.id == id}
         #we know the domain from the id
-        d_uri = "#{$base_uri}#{id[0..2]}"
+        d_uri = "#{$base_uri}#{id[0..1]}"
         if mt_idx
           #mt exists, so we just update it
           microthesauri[mt_idx].labels = labels
@@ -189,6 +194,7 @@ def make_domains_and_microthesauri(catdir)
         else
           #mt doesn't exist, so we create it
           m = Microthesaurus.new(id, uri, labels, d_uri)
+          #puts m.inspect
           microthesauri << m
         end
       else
@@ -201,6 +207,7 @@ def make_domains_and_microthesauri(catdir)
         else
           #d does not exist, so create it
           d = Domain.new(id, uri, labels, $base_uri + "00")
+          #puts d.inspect
           domains << d
         end
       end
@@ -209,7 +216,8 @@ def make_domains_and_microthesauri(catdir)
   microthesauri.each do |m|
     #each must have a domain; now add the mt to its domain
     if m.domain
-      domain_idx = domains.find_index {|d| d.id == m.domain}
+      id = m.domain.split(/\=/).last
+      domain_idx = domains.find_index {|d| d.id == id}
       if domain_idx
         domains[domain_idx].add_microthesaurus(m.uri)
       end
