@@ -96,8 +96,13 @@ Dir.mktmpdir do |dir|
   $concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern, dir)
 end
 SpinningCursor.stop
-puts "Generatuing ConceptScheme"
+puts "Generating ConceptScheme"
 $concept_scheme = create_concept_scheme(options[:catdir])
+
+puts "Generating Domains and Microthesauri"
+dmt = make_domains_and_microthesauri(options[:catdir])
+$domains = dmt[0]
+$microthesauri = dmt[1]
 
 SpinningCursor.run do
   banner "Now setting top concepts and mapping BTs, NTs, and RTs..."

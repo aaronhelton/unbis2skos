@@ -49,14 +49,10 @@ class Domain
     @labels.each do |label|
       if label.type == 'preferred'
         sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([   subject_id: (Resource.find_by literal: '#{@id}').id,
-                                        predicate_id: (Archetype.find_by name: 'prefLabel').id, 
-                                        object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       else
         sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([   subject_id: (Resource.find_by literal: '#{@id}').id,
-                                        predicate_id: (Archetype.find_by name: 'altLabel').id, 
-                                        object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       end
     end
     @microthesauri.each do |m|
