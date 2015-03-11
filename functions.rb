@@ -222,6 +222,16 @@ def make_domains_and_microthesauri(catdir)
         domains[domain_idx].add_microthesaurus(m.uri)
       end
     end
+    #now map the backward relationship from concept to microthesaurus
+    if m.top_concepts.size > 0
+      m.top_concepts.each do |tc|
+        cid = tc.split(/\=/).last
+        idx = $concepts.find_index {|c| c.id == cid}
+        if idx
+          $concepts[idx].add_microthesaurus(m.uri)
+        end
+      end
+    end
   end
   return [domains,microthesauri]
 end

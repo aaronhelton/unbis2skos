@@ -237,6 +237,11 @@ class Concept
         relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       end
     end
+    @microthesauri.each do |m|
+      tid = m.split(/\=/).last
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'microthesaurus').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'domain').id, object_id: (Resource.find_by literal: '#{tid[0..1]}').id])\n"
+    end
     @broader_terms.each do |b|
       tid = b.split(/\//).last.split(/\=/).last
       relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
