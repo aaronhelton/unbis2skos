@@ -43,21 +43,22 @@ class Domain
   end
 
   def to_rails
-    sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Domain').id, literal: '#{@id}'])\n"
+    resource_sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Domain').id, literal: '#{@id}'])\n"
+    relationship_sql = ''
     @labels.each do |label|
       if label.type == 'preferred'
-        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       else
-        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       end
     end
     @microthesauri.each do |m|
       tid = m.split(/\//).last.split(/\=/).last
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'microthesaurus').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'microthesaurus').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
-    return sql
+    return [resource_sql,relationship_sql]
   end
 
   def write_to_file(path,format,extension,header,footer)

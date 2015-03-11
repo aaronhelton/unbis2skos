@@ -219,19 +219,30 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
       if options[:split] then concept.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
     end
   elsif options[:format] == 'rails'
-    file.puts $concept_scheme.to_rails
-    #the resulting sql could fail at rake db:seed time...
+    csql = $concept_scheme.to_rails
+    resource_sql = csql[0]
+    relationship_sql = csql[1]
     $collections.each do |collection|
-      file.puts collection.to_rails
+      sql = collection.to_rails
+      resource_sql += sql[0]
+      relationship_sql += sql[1]
     end
     $domains.each do |domain|
-      file.puts domain.to_rails
+      sql = domain.to_rails
+      resource_sql += sql[0]
+      relationship_sql += sql[1]
     end
     $microthesauri.each do |mt|
-      file.puts mt.to_rails
+      sql = mt.to_rails
+      resource_sql += sql[0]
+      relationship_sql += sql[1]
     end
     $concepts.each do |concept|
-      file.puts concept.to_rails
+      sql = concept.to_rails
+      resource_sql += sql[0]
+      relationship_sql += sql[1]
     end
+    file.puts resource_sql
+    file.puts relationship_sql
   end
 end

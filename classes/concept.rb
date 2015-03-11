@@ -224,37 +224,37 @@ class Concept
   end
 
   def to_rails
-    sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Concept').id, literal: '#{@id}'])\n"
+    # This method must return two values, one for the resources and one for the relationships, 
+    # otherwise we risk referencing database objects that don't yet exist
+    resource_sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Concept').id, literal: '#{@id}'])\n"
+    relationship_sql = ''
     @labels.each do |label|
       if label.type == 'preferred'
-        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       else
-        sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       end
     end
     @broader_terms.each do |b|
       tid = b.split(/\//).last.split(/\=/).last
-      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'broader').id, literal: '#{tid}'])\n"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'broader').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @narrower_terms.each do |n|
       tid = n.split(/\//).last.split(/\=/).last
-      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'narrower').id, literal: '#{tid}'])\n"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'narrower').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @related_terms.each do |r|
       tid = r.split(/\//).last.split(/\=/).last
-      #sql += "Resource.create([archetype_id: (Archetype.find_by name: 'related').id, literal: '#{tid}'])\n"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'related').id, object_id: (Resource.find_by literal: '#{tid}').id])\n"
     end
     @scope_notes.each do |s|
-      sql += "Resource.create([archetype_id: (Archetype.find_by name: 'scopeNote').id, literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id])\n"
-      sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'scopeNote').id, object_id: (Resource.find_by literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id).id])\n"
+      resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'scopeNote').id, literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id])\n"
+      relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'scopeNote').id, object_id: (Resource.find_by literal: #{s.text.to_json}, language_id: (Language.find_by name: '#{s.language}').id).id])\n"
     end
     #todo: @broad_matches, @narrow_matches, @close_matches, @related_matches; requires additional information
-    return sql
+    return [resource_sql,relationship_sql]
   end
 
 
