@@ -73,10 +73,10 @@ def parse_raw(c)
                 Label.new(c["STerm"],"es","preferred")]
   in_scheme = $base_uri + "00"
   c["SearchFacet"].split(/,/).each do |s|
-    collection_idx = $collections.find_index {|c| c.id == s}
-    if collection_idx
-      $collections[collection_idx].add_member(uri)
-    end
+    #collection_idx = $collections.find_index {|c| c.id == s}
+    #if collection_idx
+    #  $collections[collection_idx].add_member(uri)
+    #end
     mt_idx = $microthesauri.find_index {|mt| mt.id == s}
     if mt_idx
       #puts "Adding #{uri} to top_concepts of #{$microthesauri[mt_idx].id}"

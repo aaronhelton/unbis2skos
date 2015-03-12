@@ -82,8 +82,8 @@ elsif options[:pattern]
   abort "Pattern file does not exist."
 end
 
-puts "Generating Collections"
-$collections = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
+#puts "Generating Collections"
+#$collections = merge_categories(options[:catdir]).sort_by! {|s| s.uri}
 
 puts "Generating Domains and Microthesauri"
 dmt = make_domains_and_microthesauri(options[:catdir])
@@ -173,10 +173,10 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     #if everything above worked out, there should only be one of these
     file.puts $concept_scheme.to_xml
     if options[:split] then $concept_scheme.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
-    $collections.each do |collection|
-      file.puts collection.to_xml
-      if options[:split] then collection.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
-    end
+    #$collections.each do |collection|
+    #  file.puts collection.to_xml
+    #  if options[:split] then collection.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
+    #end
     $concepts.each do |concept|
       file.puts concept.to_xml
       if options[:split] then concept.write_to_file(options[:path],"xml","xml", xml_header,xml_footer) end
@@ -189,19 +189,19 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts $concepts.collect{|concept| concept.to_json}.join(",\n")
     file.puts ']}'
     if options[:split] then $concept_scheme.write_to_file(options[:path],"json","json",nil,nil) end
-    $collections.each do |collection|
-      if options[:split] then collection.write_to_file(options[:path],"json","json",nil,nil) end
-    end
+    #$collections.each do |collection|
+    #  if options[:split] then collection.write_to_file(options[:path],"json","json",nil,nil) end
+    #end
     $concepts.each do |concept|
       if options[:split] then concept.write_to_file(options[:path],"json","json",nil,nil) end
     end
   elsif options[:format] == 'triple'
     file.puts $concept_scheme.to_triple
     if options[:split] then $concept_scheme.write_to_file(options[:path],"triple","nt",nil,nil) end
-    $collections.each do |collection|
-      file.puts collection.to_triple
-      if options[:split] then collection.write_to_file(options[:path],"triple","nt",nil,nil) end
-    end
+    #$collections.each do |collection|
+    #  file.puts collection.to_triple
+    #  if options[:split] then collection.write_to_file(options[:path],"triple","nt",nil,nil) end
+    #end
     $concepts.each do |concept|
       file.puts concept.to_triple
       if options[:split] then concept.write_to_file(options[:path],"triple","nt",nil,nil) end
@@ -210,10 +210,10 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     file.puts turtle_header
     file.puts $concept_scheme.to_turtle
     if options[:split] then $concept_scheme.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
-    $collections.each do |collection|
-      file.puts collection.to_turtle
-      if options[:split] then collection.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
-    end
+    #$collections.each do |collection|
+    #  file.puts collection.to_turtle
+    #  if options[:split] then collection.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
+    #end
     $concepts.each do |concept|
       file.puts concept.to_turtle
       if options[:split] then concept.write_to_file(options[:path], "turtle", "ttl",turtle_header,nil) end
@@ -222,11 +222,11 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     csql = $concept_scheme.to_rails
     resource_sql = csql[0]
     relationship_sql = csql[1]
-    $collections.each do |collection|
-      sql = collection.to_rails
-      resource_sql += sql[0]
-      relationship_sql += sql[1]
-    end
+    #$collections.each do |collection|
+    #  sql = collection.to_rails
+    #  resource_sql += sql[0]
+    #  relationship_sql += sql[1]
+    #end
     $domains.each do |domain|
       sql = domain.to_rails
       resource_sql += sql[0]
