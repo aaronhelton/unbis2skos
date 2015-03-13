@@ -5,14 +5,16 @@ Converts UNBIS Thesaurus SDF files to SKOS Core
 
 skosify.rb transforms structured data from a Lotus Notes database into SKOS-compliant output of a variety of formats. It reads the SDF file consisting of key value pairs, splits it into temp files, then parses into individual members of class skos:Concept before outputting to a desired format. Categorization is handled by registering a skos:ConceptScheme, assigning to it members of class eu:Domain, assigning to each eu:Domain a set of members of class eu:MicroThesaurus, then assigning to each eu:MicroThesaurus members of skos:Concept via a skos:hasTopConcept relationship. 
 
-Output options include single and split files (one ConceptScheme, Collection, or Concept per file), RDF/XML, basic JSON, nTriples, Turtle, and Rails-formatted ActiveRecord SQL (for use with @vocs).
+Output options include single and split files (one ConceptScheme, Domain, MicroThesaurus, or Concept per file), RDF/XML, basic JSON, nTriples, Turtle, and Rails-formatted ActiveRecord SQL (for use with @vocs). 
 
 Run with -h to list the flags and options available.
 
 To do:
 
-1.  Add JSON-LD output
-2.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
+1.  Complete output formatting for Domain and MicroThesaurus
+2.  Fix skos:Collection handling, which caused issues in to_rails output, but probably needs to be present to comply with SKOS-Core
+3.  Add JSON-LD output 
+4.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
 
 One particular use of this output, formatted via @unbis-dart, is visible here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
 
