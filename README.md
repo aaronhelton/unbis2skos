@@ -16,7 +16,7 @@ To do:
 3.  Add JSON-LD output 
 4.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
 
-One particular use of this output, formatted via https://github.com/aaronhelton/nbis-dart, is visible here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
+One particular use of this output, formatted via https://github.com/aaronhelton/unbis-dart, is visible here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
 
 ==========
 
