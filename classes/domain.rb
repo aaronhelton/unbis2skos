@@ -18,7 +18,9 @@ class Domain
   end
 
   def add_microthesaurus(uri)
-    @microthesauri << uri
+    unless @microthesauri.include? uri
+      @microthesauri << uri
+    end
   end
 
   def to_json(*a)
@@ -44,7 +46,7 @@ class Domain
 
   def to_rails
     resource_sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Domain').id, literal: '#{@id}'])\n"
-    relationship_sql = ''
+    relationship_sql = "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'inScheme').id, object_id: (Resource.find_by literal: '00').id])\n"
     @labels.each do |label|
       if label.type == 'preferred'
         resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"

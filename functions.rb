@@ -213,27 +213,21 @@ def make_domains_and_microthesauri(catdir)
       end
     end
   end
-  microthesauri.each do |m|
-    #each must have a domain; now add the mt to its domain
-    if m.domain
-      id = m.domain.split(/\=/).last
-      domain_idx = domains.find_index {|d| d.id == id}
-      if domain_idx
-        domains[domain_idx].add_microthesaurus(m.uri)
-      end
-    end
-    #now map the backward relationship from concept to microthesaurus
-    if m.top_concepts.size > 0
-      m.top_concepts.each do |tc|
-        cid = tc.split(/\=/).last
-        idx = $concepts.find_index {|c| c.id == cid}
-        if idx
-          $concepts[idx].add_microthesaurus(m.uri)
-        end
-      end
+  return [domains,microthesauri]
+end
+
+def map_domains_and_microthesauri
+  $microthesauri.each do |m|
+    puts m.inspect
+    domain = $domains[$domains.find_index {|d| d.id == m.id[0..1]}]
+    domain.add_microthesaurus(m.uri)
+    #m.domain = domain.uri
+    m.top_concepts.each do |t|
+      idx = $concepts.find_index {|c| c.uri == t}
+      $concepts[idx].add_domain domain.uri
+      $concepts[idx].add_microthesaurus m.uri
     end
   end
-  return [domains,microthesauri]
 end
 
 def create_concept_scheme(catdir)

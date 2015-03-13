@@ -102,6 +102,9 @@ Dir.mktmpdir do |dir|
   $concepts = readfile(options[:infile], options[:scheme], options[:exclude], pattern, dir)
 end
 SpinningCursor.stop
+
+map_domains_and_microthesauri
+
 puts "Generating ConceptScheme"
 $concept_scheme = create_concept_scheme(options[:catdir])
 

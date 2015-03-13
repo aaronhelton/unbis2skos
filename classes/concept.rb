@@ -79,11 +79,17 @@ class Concept
   end
 
   def add_domain(uri)
-    @domains << uri
+    unless @domains.include? uri
+      @domains << uri
+    end
   end
 
   def add_microthesaurus(uri)
-    @microthesauri << uri
+    unless @microthesauri.include? uri
+      @microthesauri << uri
+    end
+    domain_id = uri.split(/\=/).last[0..1]
+    self.add_domain($base_uri + domain_id)
   end
 
   def add_exact_match(uri)

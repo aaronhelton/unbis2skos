@@ -20,7 +20,9 @@ class Microthesaurus
   end
 
   def add_top_concept(uri)
-    @top_concepts << uri
+    unless @top_concepts.include? uri
+      @top_concepts << uri
+    end
   end
 
   def to_json(*a)
