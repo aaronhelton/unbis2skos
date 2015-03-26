@@ -240,7 +240,7 @@ def create_concept_scheme(catdir)
     end
   end
   concept_scheme = Scheme.new(scheme_id, $base_uri, labels)
-  $concepts.each do |concept|
+  $domains.each do |concept|
     concept_scheme.add_top_concept(concept.uri)
   end
   return concept_scheme

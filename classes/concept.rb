@@ -232,15 +232,17 @@ class Concept
   def to_rails
     # This method must return two values, one for the resources and one for the relationships, 
     # otherwise we risk referencing database objects that don't yet exist
+    # It also turns out that labels can be duplicated. If the system finds an altLabel first, it will assign that as the relationship type and
+    # result in a nil object set when looking for the prefLabel.
     resource_sql = "Resource.create([archetype_id: (Archetype.find_by name: 'Concept').id, literal: '#{@id}'])\n"
     relationship_sql = ''
     @labels.each do |label|
       if label.type == 'preferred'
         resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'prefLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'prefLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, archetype_id: (Archetype.find_by name: 'prefLabel').id, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       else
         resource_sql += "Resource.create([archetype_id: (Archetype.find_by name: 'altLabel').id, literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id])\n"
-        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
+        relationship_sql += "Relationship.create([subject_id: (Resource.find_by literal: '#{@id}').id, predicate_id: (Archetype.find_by name: 'altLabel').id, object_id: (Resource.find_by literal: #{label.text.to_json}, archetype_id: (Archetype.find_by name: 'altLabel').id, language_id: (Language.find_by name: '#{label.language}').id).id])\n"
       end
     end
     @microthesauri.each do |m|
