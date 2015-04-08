@@ -270,7 +270,6 @@ class Concept
     return [resource_sql,relationship_sql]
   end
 
-
   def write_to_file(path,format,extension,header,footer)
     unless Dir.exists?("#{path}/#{format}")
       Dir.mkdir("#{path}/#{format}") or abort "Unable to create #{format} directory in #{path}."
