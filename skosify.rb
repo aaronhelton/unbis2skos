@@ -186,8 +186,8 @@ File.open("#{options[:path]}/#{options[:outfile]}_#{options[:format]}", "a+") do
     end
   elsif options[:format] == 'json'
     file.puts '{"ConceptScheme": ' + $concept_scheme.to_json
-    file.puts '], "Collections":['
-    file.puts $collections.collect{|collection| collection.to_json}.join(",\n")
+    #file.puts '], "Collections":['
+    #file.puts $collections.collect{|collection| collection.to_json}.join(",\n")
     file.puts '], "Concepts":['
     file.puts $concepts.collect{|concept| concept.to_json}.join(",\n")
     file.puts ']}'

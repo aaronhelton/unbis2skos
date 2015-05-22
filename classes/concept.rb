@@ -131,16 +131,16 @@ class Concept
 
   def to_json(*a)
     {
-        "id" => @id,
-        "uri" => @uri,
-        "labels" => @labels.to_json,
+        "dc:identifier" => @id,
+        "rdf:about" => @uri,
+        "labels" => @labels,
         "in_scheme" => @in_scheme,
         "broader_terms" => @broader_terms,
         "narrower_terms" => @narrower_terms,
         "related_terms" => @related_terms,
         "domains" => @domains,
         "microthesari" => @microthesauri,
-        "scope_notes" => @scope_notes.to_json
+        "scope_notes" => @scope_notes
     }.to_json(*a)
   end
 
