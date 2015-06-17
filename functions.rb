@@ -55,14 +55,28 @@ def parse_raw(c)
       if key =~ /UF/
         label_type = 'skos:altLabel'
       end
-      resource.labels << Property.new(c[key],language,label_type)
+      if $xl
+        l = Property.new($id,c[key],language,'skosxl:Label')  
+        if l.is_unique?
+          $id += 1
+          $xl_labels << l
+          resource.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+        else
+          # get the xl_label that was already taken
+          idx = $xl_labels.find_index {|x| x.text == l.text}
+          target_id = $xl_labels[idx].id
+          resource.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+        end
+      else
+        resource.labels << Property.new(nil, c[key],language,label_type)
+      end
     end
   end
   
   ["AScope","CScope","EScope","FScope","RScope","SScope"].each do |key|
     if c[key] && c[key].size > 0
       language = $lang_hash["#{key[0]}"]
-      resource.scope_notes << Property.new(c[key],language, 'skos:scopeNote')
+      resource.scope_notes << Property.new(nil,c[key],language, 'skos:scopeNote')
     end
   end  
   
@@ -76,11 +90,11 @@ def parse_raw(c)
     c["Facet"].split(/\,/).each do |facet|
       coll_idx = $categories.find_index {|r| r.id == facet.gsub(/\./,"")}
       if coll_idx
-        $categories[coll_idx].relationships << Relationship.new('skos:hasTopConcept',resource.id)
+        $categories[coll_idx].relationships << Relationship.new('skos:member',resource.id)
       end
     end
   end
-  resource.relationships << Relationship.new('skos:inScheme','00')
+  resource.relationships << Relationship.new('skos:inScheme','scheme')
   
   $resources << resource
 end
@@ -170,6 +184,9 @@ def write_one_big_file(path,format_name,outfile,extension,header,footer)
       end
       $resources.each do |resource|
         file.puts(resource.send("to_#{format_name}".to_sym))
+      end
+      $xl_labels.uniq.each do |label|
+        file.puts(label.send("to_#{format_name}".to_sym))
       end
       file.puts(footer)
     end

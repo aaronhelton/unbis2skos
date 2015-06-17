@@ -23,9 +23,12 @@ available_formats = [
 
 $base_uri = "http://replaceme/"
 $base_namespace = "unbist"
+$xl = false
+$id = 10000
 
 $namespace = Hash.new
 $namespace[:skos] = "http://www.w3.org/2004/02/skos/core#"
+$namespace[:skosxl] = "http://www.w3.org/2008/05/skos-xl#"
 
 options = {}
 
@@ -65,6 +68,9 @@ OptionParser.new do |opts|
   opts.on( '-S', '--split', 'Whether or not to split the output into individual files.  Default is false.' ) do |split|
     options[:split] = true
   end
+  opts.on( '--xl', 'Use SKOS-XL for the labels instead of SKOS Core.') do |xl|
+    $xl = true
+  end
 
 end.parse!
 
@@ -75,11 +81,26 @@ if !options[:path] then abort "Missing output path argument." end
 
 $resources = Array.new
 $categories = Array.new
+$xl_labels = Array.new
 
 # Create ConceptScheme first
-$concept_scheme = Resource.new('00','skos:ConceptScheme')
+$concept_scheme = Resource.new('scheme','skos:ConceptScheme')
 ['ar','zh','en','fr','ru','es'].each do |language|
-  $concept_scheme.labels << Property.new('UNBIS Thesaurus',language,'skos:prefLabel')
+  if $xl
+    l = Property.new($id,"UNBIS Thesaurus_#{language}",language,'skosxl:Label')
+    if l.is_unique?
+      $id += 1
+      $xl_labels << l
+      $concept_scheme.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+    else
+      # get the xl_label that was already taken
+      idx = $xl_labels.find_index {|x| x.text == l.text}
+      target_id = $xl_labels[idx].id
+      $concept_scheme.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+    end
+  else
+    $concept_scheme.labels << Property.new(nil,"UNBIS Thesaurus_#{language}",language,'skos:prefLabel')
+  end
 end
 
 # Process categories next
@@ -89,20 +110,34 @@ Dir.foreach(options[:catdir]) do |file|
     File.read("#{options[:catdir]}/#{file}").split(/\n/).each do |line|
       label = JSON.parse(line)
       language = label["language"]
-      text = label["text"]
-      c.labels << Property.new(text,language,'skos:prefLabel')
+      text = file.to_s + " - " + label["text"]
+      if $xl
+        l = Property.new($id, text, language, 'skosxl:Label')
+        if l.is_unique?
+          $id += 1
+          $xl_labels << l
+          c.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+        else
+          # get the xl_label that was already taken
+          idx = $xl_labels.find_index {|x| x.text == l.text}
+          target_id = $xl_labels[idx].id
+          c.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+        end
+      else
+        c.labels << Property.new(nil,text,language,'skos:prefLabel')
+      end
     end
     $categories << c
   end
 end
 $categories.each do |cat|
-  cat.relationships << Relationship.new('skos:inScheme','00')
+  cat.relationships << Relationship.new('skos:inScheme','scheme')
   if cat.id.size > 2
     facet = cat.id[0..1]
     parent_idx = $categories.find_index {|c| c.id == facet}
     $categories[parent_idx].relationships << Relationship.new('skos:member',"#{cat.id}")
   else
-    $concept_scheme.relationships << Relationship.new('skos:member',"#{cat.id}")
+    #$concept_scheme.relationships << Relationship.new('skos:hasTopConcept',"#{cat.id}")
   end
 end
 
@@ -128,6 +163,15 @@ $resources.each do |resource|
   if resource.type == 'skos:Concept' || resource.type == 'unbist:PlaceName'
     map_raw_to_rel(resource)
     resource.properties.clear
+  end
+end
+
+# make sure top concepts are marked as such
+$resources.each do |resource|
+  ridx = resource.relationships.find_index {|r| r.type == 'skos:broader'}
+  unless ridx
+    resource.relationships << Relationship.new('skos:topConceptOf','scheme')
+    $concept_scheme.relationships << Relationship.new('skos:hasTopConcept',resource.id)
   end
 end
 

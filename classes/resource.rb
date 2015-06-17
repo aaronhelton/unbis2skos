@@ -71,7 +71,11 @@ class Resource
   end
 
   def to_turtle
-    turtle = "unbist:#{@id} rdf:type #{@type} ;\n"
+    id = @id
+    unless id == 'schema'
+      id = "_" + @id
+    end
+    turtle = "unbist:#{id} rdf:type #{@type} ;\n"
     turtle_array = Array.new
     @labels.each do |l|
       turtle_array << "  #{l.type} #{l.text.to_json}@#{l.language}"
@@ -80,7 +84,7 @@ class Resource
       turtle_array << "  #{s.type} #{s.text.to_json}@#{s.language}"
     end
     @relationships.each do |r|
-      turtle_array << "  #{r.type} unbist:#{r.target}"
+      turtle_array << "  #{r.type} unbist:_#{r.target}".gsub(/__/,"_")
     end
     turtle += turtle_array.join(" ;\n") + " ."
     return turtle
