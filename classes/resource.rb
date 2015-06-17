@@ -11,6 +11,7 @@ class Resource
   end
   
   def get_label_by(lang)
+    #the following breaks under skos-xl, so we need to wrap this up and do a different function for xl:labels
     label_idx = @labels.find_index {|l| l.language == lang}
     if label_idx
       return @labels[label_idx].text
@@ -72,7 +73,7 @@ class Resource
 
   def to_turtle
     id = @id
-    unless id == 'schema'
+    unless id == 'scheme'
       id = "_" + @id
     end
     turtle = "unbist:#{id} rdf:type #{@type} ;\n"

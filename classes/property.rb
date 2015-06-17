@@ -1,5 +1,5 @@
 class Property
-  attr_reader :id, :text,:language,:type
+  attr_reader :id, :text,:language,:type, :inbound
   
   def initialize(id,text,language,type)
     if id
@@ -8,6 +8,8 @@ class Property
     @text = text
     @language = language
     @type = type
+    # just record the resource ids that point to this
+    @inbound = Array.new
   end
   
   #These are only necessary for SKOS-XL labels

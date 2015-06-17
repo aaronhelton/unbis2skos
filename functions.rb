@@ -58,13 +58,15 @@ def parse_raw(c)
       if $xl
         l = Property.new($id,c[key],language,'skosxl:Label')  
         if l.is_unique?
+          l.inbound << resource.id
           $id += 1
           $xl_labels << l
           resource.relationships << Relationship.new(label_type.gsub(/skos/,"skosxl"),"_" + l.id)
         else
           # get the xl_label that was already taken
-          idx = $xl_labels.find_index {|x| x.text == l.text}
+          idx = $xl_labels.find_index {|x| x.text == l.text and x.language == l.language}
           target_id = $xl_labels[idx].id
+          $xl_labels[idx].inbound << resource.id
           resource.relationships << Relationship.new(label_type.gsub(/skos/,"skosxl"),"_" + target_id)
         end
       else
@@ -119,12 +121,22 @@ def map_raw_to_rel(resource)
   ["BT","RT","NT"].each do |key|
     raw["#{key}"].each do |relationship|
       if relationship && relationship.size > 0
-        ridx = $resources.find_index {|r| r.get_id_by(relationship,'en') != nil}
-        rel_type = $rel_hash["#{key}"]
-        if ridx
-          target_id = $resources[ridx].id.split(/\-/)[0]
-          #puts "#{target_id}, #{rel_type}"
-          resource.relationships << Relationship.new(rel_type,target_id)
+        if $xl
+          #first find the $xl_label whose Engish text equals the the relationship text
+          xlidx = $xl_labels.find_index {|x| x.text == relationship && x.language == 'en'}
+          if xlidx
+            matching_label = $xl_labels[xlidx]
+            # now find the resources for which matching_label is a preferred label
+          end
+        else
+          # the following only works with skos core labels
+          ridx = $resources.find_index {|r| r.get_id_by(relationship,'en') != nil}
+          rel_type = $rel_hash["#{key}"]
+          if ridx
+            target_id = $resources[ridx].id.split(/\-/)[0]
+            #puts "#{target_id}, #{rel_type}"
+            resource.relationships << Relationship.new(rel_type,target_id)
+          end
         end
       end
     end
