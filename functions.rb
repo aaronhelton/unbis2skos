@@ -60,12 +60,12 @@ def parse_raw(c)
         if l.is_unique?
           $id += 1
           $xl_labels << l
-          resource.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+          resource.relationships << Relationship.new(label_type.gsub(/skos/,"skosxl"),"_" + l.id)
         else
           # get the xl_label that was already taken
           idx = $xl_labels.find_index {|x| x.text == l.text}
           target_id = $xl_labels[idx].id
-          resource.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+          resource.relationships << Relationship.new(label_type.gsub(/skos/,"skosxl"),"_" + target_id)
         end
       else
         resource.labels << Property.new(nil, c[key],language,label_type)

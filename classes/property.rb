@@ -12,7 +12,7 @@ class Property
   
   #These are only necessary for SKOS-XL labels
   def is_unique?
-    idx = $xl_labels.find_index {|x| x.text == @text}
+    idx = $xl_labels.find_index {|x| x.text == @text && x.language == @language }
     if idx
       return false
     else
