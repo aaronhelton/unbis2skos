@@ -1,5 +1,5 @@
 class Resource
-  attr_reader :id, :type, :labels, :scope_notes, :relationships, :properties
+  attr_reader :id, :type, :labels, :scope_notes, :relationships, :properties, :rel_sql
   
   def initialize(id,type)
     @id = id
@@ -8,10 +8,10 @@ class Resource
     @scope_notes = Array.new
     @relationships = Array.new
     @properties = Array.new
+    @rel_sql = Array.new
   end
   
   def get_label_by(lang)
-    #the following breaks under skos-xl, so we need to wrap this up and do a different function for xl:labels
     label_idx = @labels.find_index {|l| l.language == lang}
     if label_idx
       return @labels[label_idx].text
@@ -89,6 +89,20 @@ class Resource
     end
     turtle += turtle_array.join(" ;\n") + " ."
     return turtle
+  end
+  
+  def to_sql
+    id = @id
+    if @id == 'scheme' then id = '00' end
+    sql_array = Array.new
+    sql_array << "insert into thesaurus_resource (uri, resource_type) values('#{@id}','#{@type}')"
+    @labels.each do |l|
+      sql_array << "insert into thesaurus_property (property_source_id, property_text, property_type, property_language) values((select id from thesaurus_resource where uri = '#{@id}'), '#{l.text.gsub(/\'/,"''")}', '#{l.type}', '#{l.language}')"
+    end
+    @scope_notes.each do |s|
+      sql_array << "insert into thesaurus_property (property_source_id, property_text, property_type, property_language) values((select id from thesaurus_resource where uri = '#{@id}'), '#{s.text.gsub(/\'/,"''")}', '#{s.type}', '#{s.language}')"
+    end
+    return sql_array.join(";\n") + ';'
   end
   
   def write_to_file(path,format,extension,header,footer)

@@ -18,7 +18,8 @@ available_formats = [
   {:name => 'elastic', :extension => 'json', :header => nil},
   {:name => 'xml', :extension => 'rdf', :header => $xml_header, :footer => $xml_footer},
   {:name => 'turtle', :extension => 'ttl', :header => $turtle_header, :footer => nil },
-  {:name => 'triple', :extension => 'nt', :header => nil, :footer => nil}
+  {:name => 'triple', :extension => 'nt', :header => nil, :footer => nil},
+  {:name => 'sql', :extension => 'sql', :header => nil, :footer => nil}
 ]
 
 $base_uri = "http://replaceme/"
@@ -82,21 +83,26 @@ if !options[:path] then abort "Missing output path argument." end
 $resources = Array.new
 $categories = Array.new
 $xl_labels = Array.new
+$relationships = Array.new
 
 # Create ConceptScheme first
-$concept_scheme = Resource.new('scheme','skos:ConceptScheme')
+$concept_scheme = Resource.new('00','skos:ConceptScheme')
 ['ar','zh','en','fr','ru','es'].each do |language|
   if $xl
     l = Property.new($id,"UNBIS Thesaurus_#{language}",language,'skosxl:Label')
     if l.is_unique?
       $id += 1
       $xl_labels << l
-      $concept_scheme.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+      r = Relationship.new('00','skosxl:prefLabel',"_" + l.id)
+      $concept_scheme.relationships << r
+      $relationships << r
     else
       # get the xl_label that was already taken
       idx = $xl_labels.find_index {|x| x.text == l.text}
       target_id = $xl_labels[idx].id
-      $concept_scheme.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+      r = Relationship.new('00','skosxl:prefLabel',"_" + target_id)
+      $concept_scheme.relationships << r
+      $relationships << r
     end
   else
     $concept_scheme.labels << Property.new(nil,"UNBIS Thesaurus_#{language}",language,'skos:prefLabel')
@@ -116,12 +122,16 @@ Dir.foreach(options[:catdir]) do |file|
         if l.is_unique?
           $id += 1
           $xl_labels << l
-          c.relationships << Relationship.new('skosxl:prefLabel',"_" + l.id)
+          r = Relationship.new(c.id,'skosxl:prefLabel',"_" + l.id)
+          c.relationships << r
+          $relationships << r
         else
           # get the xl_label that was already taken
           idx = $xl_labels.find_index {|x| x.text == l.text}
           target_id = $xl_labels[idx].id
-          c.relationships << Relationship.new('skosxl:prefLabel',"_" + target_id)
+          r = Relationship.new(c.id,'skosxl:prefLabel',"_" + target_id)
+          c.relationships << r
+          $relationships << r
         end
       else
         c.labels << Property.new(nil,text,language,'skos:prefLabel')
@@ -131,11 +141,15 @@ Dir.foreach(options[:catdir]) do |file|
   end
 end
 $categories.each do |cat|
-  cat.relationships << Relationship.new('skos:inScheme','scheme')
+  r = Relationship.new(cat.id,'skos:inScheme','00')
+  cat.relationships << r
+  $relationships << r
   if cat.id.size > 2
     facet = cat.id[0..1]
     parent_idx = $categories.find_index {|c| c.id == facet}
-    $categories[parent_idx].relationships << Relationship.new('skos:member',"#{cat.id}")
+    r = Relationship.new(facet,'skos:member',"#{cat.id}")
+    $categories[parent_idx].relationships << r
+    $relationships << r
   else
     #$concept_scheme.relationships << Relationship.new('skos:hasTopConcept',"#{cat.id}")
   end
@@ -170,8 +184,12 @@ end
 $resources.each do |resource|
   ridx = resource.relationships.find_index {|r| r.type == 'skos:broader'}
   unless ridx
-    resource.relationships << Relationship.new('skos:topConceptOf','scheme')
-    $concept_scheme.relationships << Relationship.new('skos:hasTopConcept',resource.id)
+    r1 = Relationship.new(resource.id,'skos:topConceptOf','00')
+    r2 = Relationship.new($concept_scheme.id,'skos:hasTopConcept',resource.id)
+    resource.relationships << r1
+    $concept_scheme.relationships << r2
+    $relationships << r1
+    $relationships << r2
   end
 end
 
