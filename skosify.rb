@@ -10,20 +10,12 @@ require 'spinning_cursor'
 require_relative 'classes/resource.rb'
 require_relative 'classes/relationship.rb'
 require_relative 'classes/property.rb'
+require_relative 'classes/match.rb'
 require_relative 'lib/file_parts.rb'
 require_relative 'functions.rb'
 
-available_formats = [
-  {:name => 'json', :extension => 'json', :header => nil},
-  {:name => 'elastic', :extension => 'json', :header => nil},
-  {:name => 'xml', :extension => 'rdf', :header => $xml_header, :footer => $xml_footer},
-  {:name => 'turtle', :extension => 'ttl', :header => $turtle_header, :footer => nil },
-  {:name => 'triple', :extension => 'nt', :header => nil, :footer => nil},
-  {:name => 'sql', :extension => 'sql', :header => nil, :footer => nil}
-]
-
-$base_uri = "http://replaceme/"
-$base_namespace = "unbist"
+$base_uri = "http://lib-thesaurus.un.org/thesaurus/"
+$base_namespace = ":"
 $xl = false
 $id = 10000
 
@@ -32,6 +24,8 @@ $namespace[:skos] = "http://www.w3.org/2004/02/skos/core#"
 $namespace[:skosxl] = "http://www.w3.org/2008/05/skos-xl#"
 
 options = {}
+
+available_format = {:name => 'turtle', :extension => 'ttl', :header => $turtle_header, :footer => nil }
 
 OptionParser.new do |opts|
   opts.banner = "skosify.rb takes the specified input file and transforms it into nominally SKOS compliant output, either XML or JSON."
@@ -54,24 +48,14 @@ OptionParser.new do |opts|
     options[:path] = dir
   end
   
-  opts.on( '-f', '--format FORMAT', 'Output format. Choose: json, elastic, xml, turtle, or triple.' ) do |format|
-    if format
-      fidx = available_formats.find_index {|f| f[:name] == format}
-      if fidx
-        options[:format] = available_formats[fidx]
-      else
-        abort "Format #{format} is not valid."
-      end
-    else
-      options[:format] = available_formats[2]
-    end
-  end
   opts.on( '-S', '--split', 'Whether or not to split the output into individual files.  Default is false.' ) do |split|
     options[:split] = true
   end
   opts.on( '--xl', 'Use SKOS-XL for the labels instead of SKOS Core.') do |xl|
     $xl = true
   end
+
+  options[:format] = available_format
 
 end.parse!
 
@@ -86,26 +70,40 @@ $xl_labels = Array.new
 $relationships = Array.new
 
 # Create ConceptScheme first
-$concept_scheme = Resource.new('00','skos:ConceptScheme')
-['ar','zh','en','fr','ru','es'].each do |language|
-  if $xl
-    l = Property.new($id,"UNBIS Thesaurus_#{language}",language,'skosxl:Label')
-    if l.is_unique?
-      $id += 1
-      $xl_labels << l
-      r = Relationship.new('00','skosxl:prefLabel',"_" + l.id)
-      $concept_scheme.relationships << r
-      $relationships << r
-    else
+#$concept_scheme = Resource.new('UNBISThesaurus','skos:ConceptScheme')
+#['ar','zh','en','fr','ru','es'].each do |language|
+#  if $xl
+#    l = Property.new($id,"UNBIS Thesaurus_#{language}",language,'skosxl:Label')
+#    if l.is_unique?
+#      $id += 1
+#      $xl_labels << l
+#      r = Relationship.new('UNBISThesaurus','skosxl:prefLabel',"_" + l.id)
+#      $concept_scheme.relationships << r
+#      $relationships << r
+#    else
       # get the xl_label that was already taken
-      idx = $xl_labels.find_index {|x| x.text == l.text}
-      target_id = $xl_labels[idx].id
-      r = Relationship.new('00','skosxl:prefLabel',"_" + target_id)
-      $concept_scheme.relationships << r
-      $relationships << r
-    end
+#      idx = $xl_labels.find_index {|x| x.text == l.text}
+#      target_id = $xl_labels[idx].id
+#      r = Relationship.new('UNBISThesaurus','skosxl:prefLabel',"_" + target_id)
+#      $concept_scheme.relationships << r
+#      $relationships << r
+#    end
+#  else
+#    $concept_scheme.labels << Property.new(nil,"UNBIS Thesaurus_#{language}",language,'skos:prefLabel')
+#  end
+#end
+$concept_scheme = Resource.new('UNBISThesaurus','skos:ConceptScheme')
+cs_file = JSON.parse(File.read("#{options[:catdir]}/00"))
+cs_file.each do |cs|
+  label = cs["label"]["text"]
+  label_language = cs["label"]["language"]
+  description = cs["description"]["text"]
+  description_language = cs["description"]["language"]
+  if $xl
+
   else
-    $concept_scheme.labels << Property.new(nil,"UNBIS Thesaurus_#{language}",language,'skos:prefLabel')
+    $concept_scheme.labels << Property.new(nil,label,label_language,'skos:prefLabel')
+    $concept_scheme.properties << Property.new(nil,description,description_language,'dct:description')
   end
 end
 
@@ -137,11 +135,19 @@ Dir.foreach(options[:catdir]) do |file|
         c.labels << Property.new(nil,text,language,'skos:prefLabel')
       end
     end
+    if c.id.size > 2
+      # Add an extra rdf:type via the Match class, rather than Relationship class.
+      m = Match.new(c.id, 'rdf:type', 'eu:MicroThesaurus')
+      c.matches << m
+    else
+      d = Match.new(c.id, 'rdf:type', 'eu:Domain')
+      c.matches << d
+    end
     $categories << c
   end
 end
 $categories.each do |cat|
-  r = Relationship.new(cat.id,'skos:inScheme','00')
+  r = Relationship.new(cat.id,'skos:inScheme','UNBISThesaurus')
   cat.relationships << r
   $relationships << r
   if cat.id.size > 2
@@ -149,7 +155,10 @@ $categories.each do |cat|
     parent_idx = $categories.find_index {|c| c.id == facet}
     r = Relationship.new(facet,'skos:member',"#{cat.id}")
     $categories[parent_idx].relationships << r
+    d = Relationship.new(cat.id, 'eu:domain', facet)
+    cat.relationships << d
     $relationships << r
+    $relationships << d
   else
     #$concept_scheme.relationships << Relationship.new('skos:hasTopConcept',"#{cat.id}")
   end
@@ -174,7 +183,7 @@ SpinningCursor.run do
 end
 
 $resources.each do |resource|
-  if resource.type == 'skos:Concept' || resource.type == 'unbist:PlaceName'
+  if resource.type == 'skos:Concept'
     map_raw_to_rel(resource)
     resource.properties.clear
   end
@@ -184,7 +193,7 @@ end
 $resources.each do |resource|
   ridx = resource.relationships.find_index {|r| r.type == 'skos:broader'}
   unless ridx
-    r1 = Relationship.new(resource.id,'skos:topConceptOf','00')
+    r1 = Relationship.new(resource.id,'skos:topConceptOf','UNBISThesaurus')
     r2 = Relationship.new($concept_scheme.id,'skos:hasTopConcept',resource.id)
     resource.relationships << r1
     $concept_scheme.relationships << r2
@@ -200,8 +209,4 @@ unless Dir.exists?(dir)
   Dir.mkdir(dir) or abort "Unable to create output directory #{dir}"
 end
 
-if options[:split]
-  #write_to_individual_files
-else
-  write_one_big_file(options[:path],options[:format][:name],options[:outfile],options[:format][:extension],options[:format][:header],options[:format][:footer])
-end
+write_one_big_file(options[:path],options[:format][:name],options[:outfile],options[:format][:extension],options[:format][:header],options[:format][:footer])

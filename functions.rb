@@ -63,7 +63,7 @@ def parse_raw(c)
           end
           $id += 1
           $xl_labels << l
-          r = Relationship.new(resource.id,label_type.gsub(/skos/,"skosxl"),"_" + l.id)
+          r = Relationship.new(resource.id,label_type.gsub(/skos/,"skosxl"),l.id)
           resource.relationships << r
           $relationships << r
         else
@@ -73,7 +73,7 @@ def parse_raw(c)
           if label_type =~ /prefLabel/
             $xl_labels[idx].inbound << resource.id
           end
-          r = Relationship.new(resource.id,label_type.gsub(/skos/,"skosxl"),"_" + target_id)
+          r = Relationship.new(resource.id,label_type.gsub(/skos/,"skosxl"),target_id)
           resource.relationships << r
           $relationships << r
           #The following is still necessary for relationships mapping
@@ -105,12 +105,46 @@ def parse_raw(c)
         r = Relationship.new($categories[coll_idx].id,'skos:member',resource.id)
         $categories[coll_idx].relationships << r
         $relationships << r
+        m = Relationship.new(resource.id, 'eu:microThesaurus', $categories[coll_idx].id)
+        resource.relationships << m
+        $relationships << m
+      end
+      domain_idx = $categories.find_index {|r| r.id == facet.gsub(/\./,"")[0..1]}
+      if domain_idx
+        m = Relationship.new(resource.id, 'eu:domain', $categories[domain_idx].id)
+        resource.relationships << m
+        $relationships << m
       end
     end
   end
-  r = Relationship.new(resource.id,'skos:inScheme','00')
+  r = Relationship.new(resource.id,'skos:inScheme','UNBISThesaurus')
   resource.relationships << r
   $relationships << r
+
+  #history notes; these appear to be all in English
+  if c["HistoryNote"] && c["HistoryNote"].size > 0
+    resource.history_notes << Property.new(nil, c["HistoryNote"], "en", 'skos:historyNote')
+  end
+
+  #memo fields; these will go in skos:note entries
+  ["AMemo","CMemo","EMemo","FMemo","RMemo","SMemo"].each do |key|
+     if c[key] && c[key].size > 0
+      language = $lang_hash["#{key[0]}"]
+      resource.notes << Property.new(nil,c[key],language, 'skos:note')
+    end
+  end
+
+  # set additional types based on whether term is geographic and/or placename
+  if c["GeogTerm"] == 'Yes'
+    r = Match.new(resource.id, "rdf:type", "unbist:GeographicTerm")
+    resource.matches << r
+    $relationships << r
+  end
+  if c["PlaceName"] == 'Yes'
+    r = Match.new(resource.id, "rdf:type", "unbist:PlaceName")
+    resource.matches << r
+    $relationships << r
+  end
   
   $resources << resource
 end

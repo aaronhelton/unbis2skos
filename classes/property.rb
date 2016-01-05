@@ -22,22 +22,6 @@ class Property
     end
   end
   
-  def to_json(*a)
-    
-  end
-  
-  def to_elastic(*a)
-    
-  end
-  
-  def to_xml
-    
-  end
-  
-  def to_triple
-    
-  end
-  
   def to_turtle
     turtle = ""
     turtle_array = Array.new
