@@ -3,20 +3,15 @@ unbis2skos
 
 Converts UNBIS Thesaurus SDF files to SKOS Core
 
-skosify.rb transforms structured data from a Lotus Notes database into SKOS-compliant output of a variety of formats. It reads the SDF file consisting of key value pairs, splits it into temp files, then parses into individual members of class skos:Concept before outputting to a desired format. Categorization is handled by registering a skos:ConceptScheme, assigning to it members of class eu:Domain, assigning to each eu:Domain a set of members of class eu:MicroThesaurus, then assigning to each eu:MicroThesaurus members of skos:Concept via a skos:hasTopConcept relationship. 
+status: complete
 
-Output options include single and split files (one ConceptScheme, Domain, MicroThesaurus, or Concept per file), RDF/XML, basic JSON, nTriples, Turtle, and Rails-formatted ActiveRecord SQL (for use with https://github.com/aaronhelton/vocs ). 
+skosify.rb transforms structured data from a Lotus Notes database into SKOS-compliant output of a variety of formats. It reads the SDF file consisting of key value pairs, splits it into temp files, then parses into individual members of class skos:Concept before outputting to a desired format. Categorization is handled by registering a set of  EuroVoc Domain classes, assigning to each Domain a set of EuroVoc MicroThesaurus members, then assigning to each MicroThesaurus members of skos:Concept.
+
+Output options include single and split files (one ConceptScheme, Domain, MicroThesaurus, or Concept per file), and whether to treat labels as regular SKOS Core labels or SKOS-XL labels.
 
 Run with -h to list the flags and options available.
 
-To do:
-
-1.  Complete output formatting for Domain and MicroThesaurus
-2.  Fix skos:Collection handling, which caused issues in to_rails output, but probably needs to be present to comply with SKOS-Core
-3.  Add JSON-LD output 
-4.  Add owl:SameAs entries to preserve links to the existing non-SKOS thesaurus website
-
-One particular use of this output, formatted via https://github.com/aaronhelton/unbis-dart, is visible here: http://unbis-thesaurus.s3-website-us-east-1.amazonaws.com/
+The output has been narrowed down to RDF Terse Triple Language (Turtle) because there are other tools available for converting to different formats, and they do so more predictably. For instance, Python's RDFLib package provides very handy tools for navigating and serializing the data in different formats, including RDF/XML and JSON-LD. Further, the data output is readily ingestible into triple store software such as Jena, Sesame, Virtuoso, and others.
 
 ==========
 
